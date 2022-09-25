@@ -447,16 +447,69 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
     by choosing the decision threshold on the posterior for class 0 to
     that optimizes the cost function defined by the costs and priors.
     This is the minimum cost that can be obtained on this data if one
-    could estimate the threshold perfectly.
+    could estimate the threshold perfectly. This method is only valid
+    when the cost matrix has the following form:
+     0  c01
+    c10  0
     """
 
+    if np.max(targets)>1:
+        raise ValueError("This method can only be used for binary classification.")
+
+    cmatrix = costs.get_matrix()
+
+    if np.any(np.array(cmatrix.shape) != 2) or cmatrix[0,0] != 0 or cmatrix[1,1] != 0:
+        raise ValueError("This method is only valid for cost matrices of the form: [[0, c01], [c10, 0]]")
+
+    if sample_weight is not None:
+        raise ValueError("sample_weight option not yet implemented")
+
+
     posteriors = get_posteriors_from_scores(scores, priors, score_type)
+            
+    N = len(targets)
+    N1 = np.sum(targets==1)
+    N0 = np.sum(targets==0)
+
+    # Create an array with posteriors for class 1 and targets
+    post1_with_target = np.c_[posteriors[:,1], targets]
+
+    # Sort by the posterior for class 1
+    post1_with_target = post1_with_target[post1_with_target[:,0].argsort(),]
+
+    # Below, we create vectors R01 and R10 which will contain
+    # the two error rates for all possible threshold values.
+    # R10 is the fraction of samples from class 1 labelled as
+    # class 0
+
+    sum1 = np.cumsum(post1_with_target[:,1])
+    sum0 = N0 - (np.arange(1,N+1)-sum1)
+
+    R10     = np.zeros(N+1,np.float32) # 1 more for the boundaries
+    R10[0]  = 0.0
+    R10[1:] = sum1 / N1
     
-    # Now
+    R01     = np.zeros_like(R10)
+    R01[0]  = 1.0
+    R01[1:] = sum0 / N0
 
-    cost = average_cost(targets, decisions, costs, priors, sample_weight, adjusted)
+    # Now, using those two vectors we can compute the corresponding 
+    # vector of average costs
 
-    return cost, decisions
+    if priors is None:
+        priors = np.bincount(targets)/len(targets)
+
+    ave_cost = cmatrix[0,1] * priors[0] * R01 + cmatrix[1,0] * priors[1] * R10
+
+    if adjusted:
+        # When adjusted is true, normalize the average cost
+        # with the cost of a naive system that always makes
+        # the min cost decision.
+        norm_value = np.min(np.dot(priors.T, cmatrix))
+    else:
+        norm_value = 1.0
+
+    return np.min(ave_cost)/norm_value
 
 
 
