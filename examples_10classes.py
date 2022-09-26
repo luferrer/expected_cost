@@ -1,6 +1,15 @@
 import numpy as np
 from scipy.special import logsumexp 
 import avcost
+try:
+    import psrcal
+    import torch    
+    from calibration import affine_calibration_with_crossval
+    has_psr = True
+except:
+    has_psr = False
+
+has_psr = False
 
 adjusted_cost = True
 
@@ -14,6 +23,15 @@ num_targets = np.max(targets)+1
 # Compute log-softmax to get log posteriors. 
 logpost = preacts - logsumexp(preacts, axis=-1, keepdims=True)
 
+if has_psr:
+    # Calibrate the scores with cross-validation using an affine transform
+    # trained with log-loss (cross-entropy)
+    logpostcal = affine_calibration_with_crossval(logpost, targets)
+else:
+    # If calibration code is not available for the user, load a pre-generated file
+    logpostcal = np.load("data/resnet-50_cifar10/predictions_cal_10classes.npy")
+
+
 # Print the priors from the data and the priors that are
 # derived from the posteriors from the model. In this case,
 # they are consistent, both are uniform.
@@ -21,8 +39,8 @@ priors_from_data = np.bincount(targets)/len(targets)
 priors_from_post = np.mean(np.exp(logpost), axis=0)
 print("Priors from data = %s"%" ".join(['{:.1f}'.format(i) for i in priors_from_data]))
 print("Priors from post = %s"%" ".join(['{:.1f}'.format(i) for i in priors_from_post]))
-print("Priors are consistent so these posteriors can be used to make Bayes decisions for this data "+
-    "(assuming they are well calibrated)\n")
+print("Priors are consistent between the data and the posteriors. "+
+    "Yet, as we will see, these posteriors are still not great for making Bayes decisions for all possible cost matrices because they are not well-calibrated\n")
 
 # Make maximum a posteriori decisions. These decisions are optimal 
 # for the 0-1 cost function.
@@ -32,11 +50,14 @@ ac_01 = avcost.average_cost(targets, map_decisions, cost_01, adjusted=adjusted_c
 
 # We can now check that we get the same cost if we make Bayes
 # decisions based on the posteriors
-ac_01_bayes, bayes_decisions_01, _ = avcost.average_cost_for_bayes_decisions(targets, logpost, cost_01, adjusted=adjusted_cost)
+ac_01_bayes,           _ , _ = avcost.average_cost_for_bayes_decisions(targets, logpost, cost_01, adjusted=adjusted_cost)
+ac_01_bayes_after_cal, _ , _ = avcost.average_cost_for_bayes_decisions(targets, logpostcal, cost_01, adjusted=adjusted_cost)
 
-print("Average cost for 0-1 cost matrix using MAP decisions:   %.4f"%ac_01)
-print("Average cost for 0-1 cost matrix using Bayes decisions: %.4f"%ac_01_bayes)
-print("These two costs are the same because Bayes decisions for 0-1 cost coincide with MAP decisions.\n")
+print("*** Average cost for 0-1 cost matrix")
+print("    Using MAP decisions:                        %.4f"%ac_01)
+print("    Using Bayes decisions:                      %.4f"%ac_01_bayes)
+print("    Using Bayes decisions on calibrated scores: %.4f"%ac_01_bayes_after_cal)
+print("\nThese costs are the same because Bayes decisions for 0-1 cost coincide with MAP decisions and because the scores are well-calibrated for this specific cost function.\n")
 
 # Now try a cost with an abstention decision and evaluate the MAP decisions.
 # Note that MAP will never choose the abstention decision.
@@ -47,22 +68,26 @@ ac_ab = avcost.average_cost(targets, map_decisions, cost_ab, adjusted=adjusted_c
 # Now, can we do any better than MAP decisions for this specific cost function?
 # Let's see what Bayes decisions give us.
 ac_ab_bayes, bayes_decisions_ab, _ = avcost.average_cost_for_bayes_decisions(targets, logpost, cost_ab, adjusted=adjusted_cost)
+ac_ab_bayes_after_cal,       _ , _ = avcost.average_cost_for_bayes_decisions(targets, logpostcal, cost_ab, adjusted=adjusted_cost)
 
-print("Average cost for cost matrix with abstention cost of %.1f using MAP decisions:   %.4f"%(ab_cost, ac_ab))
-print("Average cost for cost matrix with abstention cost of %.1f using Bayes decisions: %.4f"%(ab_cost, ac_ab_bayes))
-print("These two costs are not the same because optimal (Bayes) decisions include %d abstentions on the hardest samples.\n"%len(np.where(bayes_decisions_ab!= map_decisions)[0]))
-
+print("*** Average cost for cost matrix with abstention cost of %.1f"%ab_cost)
+print("    Using MAP decisions:                        %.4f"%ac_ab)
+print("    Using Bayes decisions:                      %.4f"%ac_ab_bayes)
+print("    Using Bayes decisions on calibrated scores: %.4f"%ac_ab_bayes_after_cal)
+print("\nThe first two costs are not the same because optimal (Bayes) decisions include %d abstentions on the hardest samples. "%len(np.where(bayes_decisions_ab!= map_decisions)[0]))
+print("The fact that the last two costs are not the same means that the original scores were, in fact, not that well-calibrated since they were suboptimal for this cost function.\n")
 
 # Non let's assume we expect that, on the actual data the system will be used for the priors
 # are not uniform but rather one of the classes is much more frequent than the others:
 nu_priors = np.array([0.91, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
 
-# Let's find the average cost for the 0-1 cost matrix when making Bayes decisions
-# with the posteriors given by the system. The Bayes decisions will not change, but the cost will.
-# Note that the method outputs a warning in this case, since you are using a cost function
-# with explicit priors, but feeding posteriors that may have a different implicit prior than 
-# the provided one.
-ac_01_nup_bayes, _, ac_01_nup_bayes_with_llks0 = avcost.average_cost_for_bayes_decisions(targets, logpost, cost_01, nu_priors, adjusted=adjusted_cost)
+# Let's find the average cost for the 0-1 cost matrix when making Bayes
+# decisions with the posteriors given by the system. The Bayes decisions will
+# not change, but the cost will. If silent=False (the default) t the method
+# outputs a warning in this case, since you are using a cost function with
+# explicit priors, but feeding posteriors that may have a different implicit
+# prior than  the provided one.
+ac_01_nup_bayes, _, ac_01_nup_bayes_with_llks0 = avcost.average_cost_for_bayes_decisions(targets, logpost, cost_01, nu_priors, adjusted=adjusted_cost, silent=True)
 
 # Now, let's see if we can do better. Since the posteriors have the prior embedded in them,
 # the right thing to do in this case is to convert them to scaled-likelihoods, getting rid
@@ -79,10 +104,10 @@ log_scaled_likelihoods = logpost - np.log(priors_from_post)
 # ac_01_nup_bayes_with_llks == ac_01_nup_bayes_with_llks0
 ac_01_nup_bayes_with_llks, _ = avcost.average_cost_for_bayes_decisions(targets, log_scaled_likelihoods, cost_01, nu_priors, adjusted=adjusted_cost, score_type='log_likelihoods')
 
-print("Average cost for 0-1 cost matrix and non-uniform priors using Bayes decisions with the original posteriors from the model:         %.4f"%ac_01_nup_bayes)
-print("Average cost for 0-1 cost matrix and non-uniform priors using Bayes decisions with the scaled likelihoods and the target priors:   %.4f"%ac_01_nup_bayes_with_llks)
-print("The second average cost is much lower because the original priors are quite bad for making decisions when priors are non-uniform.\n")
-
+print("*** Average cost for 0-1 cost matrix and non-uniform priors")
+print("    Using Bayes decisions with the original posteriors from the model:         %.4f"%ac_01_nup_bayes)
+print("    Using Bayes decisions with the scaled likelihoods and the target priors:   %.4f"%ac_01_nup_bayes_with_llks)
+print("\nThe second average cost is much lower because the original priors are quite bad for making decisions when priors are non-uniform.\n")
 
 
 

@@ -220,7 +220,7 @@ def generalized_confusion_matrix(targets, decisions, sample_weight=None, normali
 
 
 
-def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors'):
+def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', silent=False):
     """ Make Bayes decisions for the given costs and scores. Bayes decision 
     are those that optimize the given cost function assuming the system produces
     well-calibrated posteriors. They are given by:
@@ -295,8 +295,8 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors'):
     if score_type == "log_likelihood_ratio" and cmatrix.shape[0] != 2:
         raise ValueError("Score type log_likelihood_ratio can only be used for binary "+
             "classification tasks, but your cost matrix has more than two targets.") 
-
-    if 'posterior' in score_type and priors is not None:
+    
+    if 'posterior' in score_type and priors is not None and not silent:
         print("You provided posteriors and priors as input to bayes_decisions. "+
             "When posteriors are provided as score_type, priors are ignored. "+
             "The decisions will only be optimal for cost functions that assume the same "+
@@ -394,7 +394,7 @@ class cost_matrix:
 
 
 def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, sample_weight=None, 
-    adjusted=False, score_type='log_posteriors'):
+    adjusted=False, score_type='log_posteriors', silent=False):
     """ Average cost for Bayes decisions given the provided scores.
     The decisions are optimized for the provided costs and priors, assuming
     that the scores can be used to obtain well-calibrated posteriors.
@@ -408,7 +408,7 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
     input are described in the bayes_decision method.
     """
 
-    decisions, posteriors = bayes_decisions(scores, costs, priors, score_type)
+    decisions, posteriors = bayes_decisions(scores, costs, priors, score_type, silent=silent)
     cost = average_cost(targets, decisions, costs, priors, sample_weight, adjusted)
 
     # When posteriors are provided, we also return the cost
