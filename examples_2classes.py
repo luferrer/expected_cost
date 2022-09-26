@@ -18,7 +18,6 @@ targets = np.load("data/resnet-50_cifar10/targets.npy")
 
 # Keep only two of the scores and the samples from those two classes
 # to fake a 2-class problem.
-# You can edit the indices below to see 
 sel = targets <= 1
 targets = targets[sel]
 preacts = preacts[sel][:,:2]
@@ -28,16 +27,13 @@ num_targets = np.max(targets)+1
 # Compute log-softmax to get log posteriors. 
 logpost = preacts - logsumexp(preacts, axis=-1, keepdims=True)
 
-# Calibrate the scores with cross-validation using an affine transform
-# trained with log-loss (cross-entropy)
 if has_psr:
     # Calibrate the scores with cross-validation using an affine transform
     # trained with log-loss (cross-entropy)
     logpostcal = affine_calibration_with_crossval(logpost, targets)
-    np.save("data/resnet-50_cifar10/predictions_cal_first2classes.npy", logpostcal)
 else:
-    # If calibration code is not available for the user, load a pre-generated file
-    logpostcal = np.load("data/resnet-50_cifar10/predictions_cal_10classes.npy")
+    # If calibration code is not available, load a pre-generated file
+    logpostcal = np.load("data/resnet-50_cifar10/predictions_cal_first2classes.npy")
 
 
 # Now, compute a family of cost matrices varying the cost for one of the classes
@@ -48,7 +44,7 @@ else:
 # optimize the specific cost function. 
 map_decisions = np.argmax(logpost, axis=-1)
 
-print("Results for cost matrix = [[0 1] [alpha 0]]\n")
+print("*** Average cost for cost matrix = [[0 1] [alpha 0]]\n")
 
 print("Alpha      MAP      Bayes   Bayes_after_cal  Optimal")
 
@@ -72,11 +68,8 @@ print("\nThe difference between MAP and Bayes shows the suboptimality of MAP dec
     "that the optimal cost is, in fact, too optimistic since the threshold is selected on the evaluation data itself.\n")
 
 
-
-
-print("Results for cost matrix with an abstention option = [[0 1 alpha] [1 0 alpha]].\n")
+print("*** Average cost for cost matrix with an abstention option = [[0 1 alpha] [1 0 alpha]].\n")
 print("Alpha      MAP      Bayes    Num_abstentions_with_Bayes   Bayes_after_cal  Num_abstentions_with_Bayes_after_cal")
-
 
 for logalpha in np.arange(-4, 0.5, 0.5):
 
@@ -91,8 +84,9 @@ for logalpha in np.arange(-4, 0.5, 0.5):
 
 print("\nThe lower the cost of abstention, the more samples get this label and the worse the MAP decisions are (which do not have the abstention option). "+
     "Further, the adjusted Bayes cost increases as alpha gets lower because the naïve system used for normalization (which would always choose to abstain) "+
-    "is harder to beat (i.e., it has a lower cost). Finally, we can see that the cost is much lower after calibration (more abstentions are made), showing again that the original "+
-    "scores were not well-calibrated. Note that, in this case, optimal decisions cannot be made by sweeping a threshold as for the square cost function above\n")
+    "is harder to beat (i.e., it has a lower cost). We can see that the cost is much lower after calibration (more abstentions are made), showing again that the "+
+    "original scores were not well-calibrated across all possible operating points. Note that, in this case, optimal decisions cannot be made by sweeping a "+
+    "threshold as for the square cost function above because there are three possible decisions.\n")
 
 
 

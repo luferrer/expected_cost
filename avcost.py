@@ -1,4 +1,4 @@
-""" Methods for compute the average cost on hard decisions and 
+""" Methods for computing the average cost on hard decisions and 
 on optimal Bayes decisions based on system scores.
 Written by Luciana Ferrer.
 """
@@ -31,7 +31,7 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     Finally, the average cost allows the set of the decisions to be different
     from the set of targets. This can be used, for example, in cases in which
     what needs to be evaluated are actions taken based on the system's output.
-    The decisions could,  for example, include a ``reject'' option that makes
+    The decisions could, for example, include a ``reject'' option that makes
     no decision about the class when the system is not certain enough to 
     select any class.
 
@@ -81,19 +81,17 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     -------
 
     average_cost : float
-        Balanced accuracy score.
+        The average cost over the data.
     
     See Also
     --------
 
-    cost_matrix : Class to define the cost matrix including method
-        to conver from utility to cost matrix, to check degeneracy
-        and to standardize it.
+    cost_matrix : Class to define the cost matrix including methods
+        to conver from utility to cost matrix and to standardize it.
 
     average_cost_for_bayes_decisions : Average cost taking continuous
         scores as input instead of decisions, assuming decisions are
-        made optimally using Bayes decision theory for the specified 
-        cost function (given by the cost matrix and priors).
+        made using Bayes decision theory.
 
     bayes_decisions : method to make optimal decisions using Bayes
         decision theory.
@@ -140,7 +138,6 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
 
 
 def generalized_confusion_matrix(targets, decisions, sample_weight=None, normalize=None, num_targets=None, num_decisions=None):     
-
     """ Get the confusion matrix between targets and decisions. This is a
     generalization of the usual confusion matrix where the set of decisions are
     restricted to be the same as the set of targets. The element ij of the
@@ -164,16 +161,16 @@ def generalized_confusion_matrix(targets, decisions, sample_weight=None, normali
         Sample weights.
 
     normalize :  normalize the confusion matrix by row (should be 
-        "true"), by column (should be "pred"), or by the total number 
-        of samples ("all".
+        "true"), by column ("pred"), or by the total number of
+        samples ("all").
 
     num_targets :  total number of target classes. If None, the max
         index in targets + 1 is assumed to be the total number of 
         classes.
 
     num_decisions :  total number of possible decisions. If None, 
-        the max index in targets + 1 is assumed to be the total number 
-        of classes.
+        the max index in decisions + 1 is assumed to be the total 
+        number of classes.
 
     Returns
     -------
@@ -202,7 +199,6 @@ def generalized_confusion_matrix(targets, decisions, sample_weight=None, normali
         num_targets = np.max(targets)+1
     if num_decisions is None:
         num_decisions = np.max(decisions)+1
-
 
     cm = coo_matrix((sample_weight, (targets, decisions)), shape=(num_targets, num_decisions), dtype=dtype).toarray()
 
@@ -286,7 +282,10 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
         computes the priors from the data. The priors are normalized to sum to
         1 by the method.
     
-    score_type : string describing the type of input score. See description above.
+    score_type : string describing the type of input score. Default=log_posteriors.
+        It can be: posteriors, log_posteriors, log_likelihoods or log_likelihood_ratios.
+
+    silent : If true, a warning is output when posteriors and priors are provided.
 
     """
 
@@ -308,18 +307,16 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
 
 
 def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors'):
+    """ Convert scores into posteriors depending on their type. See method
+    bayes_decisions for more details."""
 
     if 'posterior' in score_type:
-
         # In this case, priors are ignored
-        
         posteriors = np.exp(scores) if score_type == "log_posteriors" else scores
 
     else:
-
         # If the inputs are not posteriors, turn them into posteriors
         # using the provided priors.
-
         if priors is None:
             raise ValueError("Prior needs to be provided when using score_type %s"%score_type)
 
@@ -330,7 +327,7 @@ def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors')
             log_posteriors_unnormed = scores + np.log(priors)
             posteriors = np.exp(log_posteriors_unnormed - logsumexp(log_posteriors_unnormed))
         
-        elif score_type == "log_likelihood_ratio":
+        elif score_type == "log_likelihood_ratios":
 
             log_odds = scores + np.log(priors[0]/priors[1])
             posterior0 = 1/(1+np.exp(-log_odds))
@@ -343,19 +340,22 @@ def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors')
 
 
 class cost_matrix:
-    """ Utility class to define and work with cost matrices.
-    The cost matrix has one row per true class and 
-    one column per decision. Entry (i,j) in the matrix corresponds 
-    to the cost we want the model to incur when it decides j
-    for a sample with true class i.
+    
+    """ 
+    Utility class to define and work with cost matrices. The cost matrix has one
+    row per true class and  one column per decision. Entry (i,j) in the matrix
+    corresponds  to the cost we want the model to incur when it decides j for a
+    sample with true class i.
     """
+
     def __init__(self,costs):
         self.costs = np.array(costs)
         if np.any(costs)<0:
             print("Cost matrix contains negative elements. Consider running self.normalize "+
                 "to make sure all components are positive. This transformation does not change "+ 
                 "the optimal decisions or the ranking of systems evaluated with this cost and "+
-                "it ensures that the minimum value of the average_cost is 0.")
+                "it ensures that the minimum value of the average_cost is 0 making it easier "+
+                "to interpret.")
 
 
     def normalize(self):
@@ -372,7 +372,7 @@ class cost_matrix:
     @staticmethod
     def from_utilities(utilites):
         """ Obtain a cost matrix from a utility matrix where better
-        decisions are given higher values """
+        decisions are given higher values. """
         return cost_matrix(-utilities).normalize()
 
     @staticmethod
@@ -398,14 +398,66 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
     """ Average cost for Bayes decisions given the provided scores.
     The decisions are optimized for the provided costs and priors, assuming
     that the scores can be used to obtain well-calibrated posteriors.
-    Note that the decisions will not be optimal if the prior implicit in the
-    posteriors on the evaluation data does not coincide with the priors
-    used in the cost function. The method does a sanity check of this and
-    reports a warning when this is not the case.
-    See the average_cost method for a description of the inputs. The only
-    difference between the two methods is that average_cost takes decisions
-    as input, while this method takes scores. The types of scores allowed as
-    input are described in the bayes_decision method.
+    
+    When the input scores are posteriors or log-posteriors, this method
+    also computes the average cost for Bayes decisions using likelihoods
+    obtained from the posteriors by dividing by the prior (obtained as
+    the average posterior over the data). If this cost is much better
+    than the original one computed with posteriors it means that the 
+    priors in the data are too different from those implicit in the 
+    posteriors and, as a consequence, the Bayes decisions made with 
+    those posteriors are suboptimal.
+
+    Parameters 
+    ----------
+
+    targets : 1d array-like of size N
+        Ground truth (correct) target values for a set of N samples. 
+        Should take values between 0 and C-1, where C is the number
+        of possible class targets.
+
+    scores : array-like of size NxC
+        Scores can be posteriors, log-posteriors, log-likelihoods
+        or log-likelihood ratios (see method bayes_decisions for 
+        a detailed explanation)
+
+    sample_weight : array-like of size N, default=None
+        Sample weights used to compute the confusion matrix from 
+        which the cost is then computed.
+
+    costs : an object of class cost_matrix specifying the cost
+        for each combination of i and j, where i and j
+        are the true class and the decision indices for a sample. If 
+        set to None, the standard zero-one cost matrix is used, which
+        results in the average_cost coinciding with the error rate.
+
+    priors : the class priors required for evaluation. If set to None,
+        the priors are taken from the data. 
+
+    adjusted : bool, default=False
+        When true, the result is adjusted for chance, so that a naïve 
+        system would score exactly 1.0. 
+
+    score_type: string, default='log_posteriors'
+        The type of scores provided. Can be posteriors, log-posteriors,
+        log_likelihoods or log_likelihood_ratios.
+
+    silent : If true, a warning is output when posteriors and priors are 
+        provided.
+
+    Returns
+    -------
+
+    average_cost : float
+        The average cost over the data for Bayes decisions.
+
+    decisions : array of size N
+        The Bayes decisions that correspond to the computed cost
+
+    average_cost_for_matched_priors : float
+        The average cost over the data for Bayes decisions made
+        using log-likelihoods estimated from the posteriors.
+
     """
 
     decisions, posteriors = bayes_decisions(scores, costs, priors, score_type, silent=silent)
@@ -442,15 +494,20 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
 
 def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None, sample_weight=None, 
     adjusted=False, score_type='log_posteriors'):
-    """ Average cost for optimal decisions given the provided scores. Only 
-    applicable to binary classification. The optimal decisions are made
-    by choosing the decision threshold on the posterior for class 0 to
-    that optimizes the cost function defined by the costs and priors.
-    This is the minimum cost that can be obtained on this data if one
-    could estimate the threshold perfectly. This method is only valid
-    when the cost matrix has the following form:
-     0  c01
-    c10  0
+    """ Average cost for optimal decisions given the provided scores. 
+    Only applicable to binary classification when the cost matrix has 
+    the following form:
+    
+                             0  c01
+                            c10  0
+
+    The optimal decisions are made by choosing the decision threshold on the
+    posterior for class 0 to the one that optimizes the cost function defined by
+    the costs and priors. This is the minimum cost that can be obtained on this
+    data if one could estimate the threshold perfectly, i.e., it is optimistic
+    as it cheats in the selection of the threshold, but it is useful as a reference
+    of what is the best cost one can get on this data.
+    
     """
 
     if np.max(targets)>1:
