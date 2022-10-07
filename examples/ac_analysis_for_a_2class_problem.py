@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import logsumexp 
-import avcost
+from classmetrics import avcost
 try:
     import psrcal
     import torch    

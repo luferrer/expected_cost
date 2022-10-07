@@ -7,7 +7,7 @@ from sklearn.metrics._classification import  _check_targets, check_consistent_le
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.special import logsumexp 
-
+from IPython import embed
 
 def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None, adjusted=False):
     """Compute the average cost.
@@ -123,6 +123,45 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     R = generalized_confusion_matrix(targets, decisions, sample_weight=sample_weight, normalize="true",
         num_targets = cmatrix.shape[0], num_decisions = cmatrix.shape[1])
 
+    return average_cost_from_confusion_matrix(R, priors, costs, adjusted)
+
+
+def average_cost_from_confusion_matrix(R, priors, costs, adjusted=False):
+    """Compute the average cost as in the average_cost method but taking
+    the confusion matrix as input.
+
+    Parameters 
+    ----------
+
+    R : confusion matrix, where Rij contains the fraction of samples of
+        class i for which decision j was made (can be obtained with
+        generalized_confusion_matrix with normalize="true")
+
+    costs : an object of class cost_matrix specifying the cost
+        for each combination of i and j, where i and j
+        are the true class and the decision indices for a sample. If 
+        set to None, the standard zero-one cost matrix is used, which
+        results in the average_cost coinciding with the error rate.
+
+    priors : the class priors required for evaluation. If set to None,
+        the priors are taken from the data. 
+
+    adjusted : bool, default=False
+        When true, the result is adjusted for chance, so that a naïve 
+        system would score exactly 1.0. 
+
+    Returns
+    -------
+
+    average_cost : float
+        The average cost over the data.
+    """    
+
+    cmatrix = costs.get_matrix()
+
+    if priors.ndim==1:
+        priors = priors[:,np.newaxis]
+
     # Compute the average cost as the sum of all c_ij P_i R_ij
     ave_cost = np.sum(priors * cmatrix * R)
 
@@ -135,6 +174,7 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
         norm_value = 1.0
 
     return ave_cost / norm_value
+
 
 
 def generalized_confusion_matrix(targets, decisions, sample_weight=None, normalize=None, num_targets=None, num_decisions=None):     
