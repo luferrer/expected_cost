@@ -1,8 +1,8 @@
-# Average cost
+# Expected cost
 
-Methods for computing the average cost on an evaluation dataset. 
+Methods for computing the expected cost on an evaluation dataset. 
 Given a matrix of user-defined costs for each combination of true class and decision made by the system, 
-this metric is given by the average of the costs across all samples in the dataset.
+this metric is estimated as the average of the costs across all samples in the dataset.
 
 The decisions needed for evaluation of the cost can be:
 
