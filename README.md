@@ -32,5 +32,15 @@ The repository provides calibration functionality using a separate repository ca
 
    ```git clone https://github.com/luferrer/expected_cost.git```
 
-2. Run the example code in the examples dir. See the README in that dir for how to run the scripts.
+2. Install the requirements:  
+   
+   ```pip install -r requirements.txt```
+   
+3. (Optional) If you want to enable calibration capabilities follow the installation instructions in:
+
+   ```https://github.com/SergioAlvarezB/psr-calibration```
+  
+   and link the main directory for that repository inside the expected_cost directory.
+  
+4. Run the example code in the examples dir. See the README in that dir for how to run the scripts.
 
