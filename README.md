@@ -40,7 +40,7 @@ The repository provides calibration functionality using a separate repository ca
 
    ```https://github.com/SergioAlvarezB/psr-calibration```
   
-   and link the main directory for that repository inside the expected_cost directory.
+   and link the psrcal directory from that repository in the expected_cost directory.
   
 4. Run the example code in the examples dir. See the README in that dir for how to run the scripts.
 
