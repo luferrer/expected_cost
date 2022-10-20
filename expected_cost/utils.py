@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import scipy.stats
 from scipy.special import expit, logit, logsumexp 
 import os
-from IPython import embed
 
 def make_hist(targets, scores, classi=0, nbins=100):
     """ Plot the histogram for the scores output by the system for

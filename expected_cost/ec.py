@@ -6,7 +6,6 @@ Written by Luciana Ferrer.
 from sklearn.metrics._classification import  _check_targets, check_consistent_length
 import numpy as np
 from scipy.sparse import coo_matrix
-from IPython import embed
 from expected_cost import utils
 
 def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None, adjusted=False):

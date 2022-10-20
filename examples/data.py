@@ -5,7 +5,7 @@ import numpy as np
 from scipy.stats import norm, multivariate_normal
 from scipy.special import logsumexp 
 from expected_cost import utils
-from IPython import embed
+
 try:
     import torch    
     from expected_cost.calibration import affine_calibration_with_crossval

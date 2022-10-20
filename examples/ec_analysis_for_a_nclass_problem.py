@@ -2,7 +2,6 @@ import numpy as np
 from scipy.special import logsumexp 
 from expected_cost import ec, utils
 from data import get_scaled_llks_for_multi_classif_task
-from IPython import embed
 import sys
 
 adjusted_cost = True
