@@ -6,8 +6,8 @@ Written by Luciana Ferrer.
 from sklearn.metrics._classification import  _check_targets, check_consistent_length
 import numpy as np
 from scipy.sparse import coo_matrix
-from scipy.special import logsumexp 
 from IPython import embed
+from expected_cost import utils
 
 def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None, adjusted=False):
     """Compute the average cost.
@@ -123,7 +123,10 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     R = generalized_confusion_matrix(targets, decisions, sample_weight=sample_weight, normalize="true",
         num_targets = cmatrix.shape[0], num_decisions = cmatrix.shape[1])
 
-    return average_cost_from_confusion_matrix(R, priors, costs, adjusted)
+
+    ave_cost = average_cost_from_confusion_matrix(R, priors, costs, adjusted)
+    
+    return ave_cost
 
 
 def average_cost_from_confusion_matrix(R, priors, costs, adjusted=False):
@@ -360,21 +363,19 @@ def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors')
         if priors is None:
             raise ValueError("Prior needs to be provided when using score_type %s"%score_type)
 
-        priors = np.array(priors)
-        priors /= np.sum(priors)
+        priors = np.array(priors)/np.sum(priors)
 
         if score_type == "log_likelihoods":
-            log_posteriors_unnormed = scores + np.log(priors)
-            posteriors = np.exp(log_posteriors_unnormed - logsumexp(log_posteriors_unnormed))
+            posteriors = np.exp(utils.llks_to_logpost(scores, priors))
         
         elif score_type == "log_likelihood_ratios":
-
-            log_odds = scores + np.log(priors[0]/priors[1])
-            posterior0 = 1/(1+np.exp(-log_odds))
-            posteriors = np.c_[posterior0, 1-posterior0]
+            posteriors = np.exp(utils.llrs_to_logpost(scores, priors))
         
         else:
             raise ValueError("Score type %s not implemented"%score_type)
+
+    # Make sure the posteriors sum to 1
+    posteriors /= np.sum(posteriors, axis=1, keepdims=True)
 
     return posteriors
 
@@ -435,19 +436,17 @@ class cost_matrix:
 
 def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, sample_weight=None, 
     adjusted=False, score_type='log_posteriors', silent=False):
-    """ Average cost for Bayes decisions given the provided scores.
-    The decisions are optimized for the provided costs and priors, assuming
-    that the scores can be used to obtain well-calibrated posteriors.
-    
-    When the input scores are posteriors or log-posteriors, this method
-    also computes the average cost for Bayes decisions using likelihoods
-    obtained from the posteriors by dividing by the prior (obtained as
-    the average posterior over the data). If this cost is much better
-    than the original one computed with posteriors it means that the 
-    priors in the data are too different from those implicit in the 
-    posteriors and, as a consequence, the Bayes decisions made with 
-    those posteriors are suboptimal.
+    """ Average cost for Bayes decisions given the provided scores. 
+    The decisions are optimized for the provided costs and priors,
+    assuming that the scores can be used to obtain well-calibrated
+    posteriors. 
 
+    Note that if the scores are posteriors or log- posteriors and the
+    priors in the data, or those provided externally, are not well
+    matched to those used to train the system, the cost will higher
+    than it could be. In this case, calibration (or adjustment of the
+    priors) may result in better costs.
+    
     Parameters 
     ----------
 
@@ -494,41 +493,12 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
     decisions : array of size N
         The Bayes decisions that correspond to the computed cost
 
-    average_cost_for_matched_priors : float
-        The average cost over the data for Bayes decisions made
-        using log-likelihoods estimated from the posteriors.
-
     """
 
     decisions, posteriors = bayes_decisions(scores, costs, priors, score_type, silent=silent)
     cost = average_cost(targets, decisions, costs, priors, sample_weight, adjusted)
 
-    # When posteriors are provided, we also return the cost
-    # could have obtained if we converted the posteriors to scaled-likelihoods
-    # and then back to posteriors using perfectly matched priors.
-    # When other score types are used, the posteriors are computed for the
-    # right priors so there is nothing to check in that case.
-    if 'posterior' in score_type:
-
-        priors_from_posterior = np.mean(posteriors, axis=0, keepdims=True)
-        if score_type == 'posteriors':
-            scores_without_prior = scores / priors_from_posterior
-        elif score_type == 'log_posteriors':
-            scores_without_prior = scores - np.log(priors_from_posterior)
-        else:
-            raise ValueError('Score type %s not implemented'%score_type)
-
-        if priors is None:
-            priors = np.bincount(targets)/len(targets)
-
-        decisions_for_matched_priors, _ = bayes_decisions(scores_without_prior, costs, priors, score_type='log_likelihoods')
-        cost_for_matched_priors = average_cost(targets, decisions_for_matched_priors, costs, priors, sample_weight, adjusted)
-
-        return cost, decisions, cost_for_matched_priors
-
-    else:
-
-        return cost, decisions
+    return cost, decisions
 
 
 

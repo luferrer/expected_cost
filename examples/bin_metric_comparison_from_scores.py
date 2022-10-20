@@ -1,20 +1,11 @@
-""" Script used to generate the plots and results in the paper:
-"Analysis and Comparison of Classification Metrics"
-
-Note that here the indices for the classes are taken to be 0 and 1
-(to be consistent with the fact that the average_cost repository
-assumes that classes go from 0 to C-1), which correspond to 1 and 2 
-in the paper, respectively.
-"""
-
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
-from scipy.special import expit, logit
-from classmetrics import avcost
-from classmetrics import utils
+from scipy.special import expit, logit, logsumexp 
+from expected_cost import ec, utils
+from data import get_llrs_for_bin_classif_task
 from IPython import embed
+import re
 
 
 def plot_vertical_line(x, ylim, style):
@@ -27,29 +18,13 @@ def value_at_thr(values, thrs, sel_thr):
     return values[i]
 
 
-#########################################################################################
-# Ccreate scores using a Gaussian distribution for each class. These scores will not
-# necessarily be well calibrated.
+outdir = "outputs/metric_comparison_from_scores"
+utils.mkdir_p(outdir)
 
-plt.figure()
-
-N0 = 100000
-N1 = 10000
+targets, raw_scores, cal_scores = get_llrs_for_bin_classif_task('gaussian_sim', prior1=0.1)
+N0 = sum(targets==0)
+N1 = sum(targets==1)
 K = N0 + N1
-
-std0 = 1.0
-std1 = 1.0
-mean0 = -1.5
-mean1 = 1.0
-
-raw_scores0 = np.random.normal(mean0, std0, N0)
-raw_scores1 = np.random.normal(mean1, std1, N1)
-raw_scores = np.r_[raw_scores0, raw_scores1]
-targets = np.r_[np.zeros(N0), np.ones(N1)]
-
-# Now get the LLRs given the model we chose for the distributions
-# These new scores are well-calibrated by definition
-cal_scores = utils.get_llr_for_gaussian_model(raw_scores, mean0, mean1, std0, std1)
 
 # Plot the resulting distributions
 plt.figure()
@@ -62,7 +37,7 @@ plt.plot(c, hs[1], 'b-', label='cal_scores')
 plt.plot(c, hs[0], 'b:')
 plt.legend()
 
-plt.savefig("metric_comparison_from_scores.dists.pdf")
+plt.savefig("%s/score_dists.pdf"%outdir)
 
 # Now, we take raw and calibrated scores and choose a bunch of
 # different decision thresholds and compute a few metrics
@@ -75,8 +50,8 @@ priors_unif = np.array([0.5, 0.5])
 
 # We consider to cost matrices, the usual 0-1 matrix
 # and one with a higher weight for K10
-costs_01 = avcost.cost_matrix([[0, 1], [1, 0]])
-costs_0b = avcost.cost_matrix([[0, 1], [2, 0]])
+costs_01 = ec.cost_matrix([[0, 1], [1, 0]])
+costs_0b = ec.cost_matrix([[0, 1], [2, 0]])
 
 colors = {'EC1': 'b', 'EC2': 'r', 'FS': 'g'} #, 'MCC': 'k'}
 metrics = colors.keys()
@@ -100,8 +75,8 @@ for score_name, scores in score_dict.items():
 
         R = utils.compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1)
 
-        metric_dict['EC1'].append(avcost.average_cost_from_confusion_matrix(R, priors_unif, costs_01, adjusted=True))
-        metric_dict['EC2'].append(avcost.average_cost_from_confusion_matrix(R, priors_data, costs_0b, adjusted=True))
+        metric_dict['EC1'].append(ec.average_cost_from_confusion_matrix(R, priors_unif, costs_01, adjusted=True))
+        metric_dict['EC2'].append(ec.average_cost_from_confusion_matrix(R, priors_data, costs_0b, adjusted=True))
         metric_dict['FS'].append(utils.Fscore(K10, K01, N0, N1))
         #metric_dict['MCC'].append(utils.MCCoeff(K10, K01, N0, N1))
 
@@ -109,16 +84,16 @@ for score_name, scores in score_dict.items():
     for metric_name, metric_list in metric_dict.items():
         metric_dict[metric_name] = np.array(metric_list)
 
-    plt.figure(figsize=(6,4))
+    plt.figure(figsize=(4,3.5))
     plt.plot(thrs, metric_dict['EC1'], label=r'$\mathrm{NEC}_u$', color=colors['EC1'])
     plt.plot(thrs, metric_dict['EC2'], label=r'$\mathrm{NEC}_{\beta^2=2}$', color=colors['EC2'])
     plt.plot(thrs, 1-metric_dict['FS'], label=r'$1-\mathrm{FS}_{\beta=1}$', color=colors['FS'])
    # plt.plot(thrs, -metric_dict['MCC'], label="-1 * MCC", color=colors['MCC'])
 
     thr_dict = dict()
-    thr_dict['bayes_thr_for_EC1'] = utils.bayes_thr_for_binary_classif(priors_unif, costs_01)
+    thr_dict['bayes_thr_for_EC1'] = utils.bayes_thr_for_llrs(priors_unif, costs_01)
     thr_dict['best_thr_for_EC1']  = thrs[np.nanargmin(metric_dict['EC1'])]
-    thr_dict['bayes_thr_for_EC2'] = utils.bayes_thr_for_binary_classif(priors_data, costs_0b)
+    thr_dict['bayes_thr_for_EC2'] = utils.bayes_thr_for_llrs(priors_data, costs_0b)
     thr_dict['best_thr_for_EC2']  = thrs[np.nanargmin(metric_dict['EC2'])]
     thr_dict['best_thr_for_FS']   = thrs[np.nanargmin(1-metric_dict['FS'])]
     #thr_dict['best_thr_for_MCC']  = thrs[np.nanargmin(-metric_dict['MCC'])]
@@ -129,8 +104,10 @@ for score_name, scores in score_dict.items():
         if 'EC' in metric:
             plot_vertical_line(thr_dict['bayes_thr_for_'+metric], ylim, colors[metric]+'--') 
     plt.xlabel("Threshold")
-    plt.legend()
-    plt.savefig("metric_comparison_from_%s.pdf"%score_name)
+    plt.legend(loc='upper right')
+    plt.title(re.sub("cal", "calibrated", re.sub("_"," ",score_name)))
+    plt.tight_layout()
+    plt.savefig("%s/%s.pdf"%(outdir, score_name))
 
     # Now, print the value of every metric for every threshold above
     print("    %-20s ( %6s ) "%("Thr_type", "Thr_val"), end='')
@@ -141,15 +118,17 @@ for score_name, scores in score_dict.items():
     for thr_name, thr in thr_dict.items():
         print("    %-20s ( %6.3f  ) "%(thr_name, thr), end='')
         for metric in metrics:
-            print("%5.2f  "%value_at_thr(metric_dict[metric], thrs, thr), end='')
+            print("%5.3f  "%value_at_thr(metric_dict[metric], thrs, thr), end='')
         print("")
     print("")
 
 
 print("""Note that:
 * The metrics are immune to calibration issues when computed for decisions made with thresholds optimized for any metric.
-* With FS and MCC we have no way to tell if we have a calibration problem.
+* With FS we have no way to tell if we have a calibration problem.
 * With EC, we can compare the metric for the bayes and the best threshold. If the first is much worse than the latter, then we know we have a calibration problem.
-* For this particular data, the decisions would be very similar if we optimize the threshold for EC2, FS or MCC.
-* You can play with the priors, costs, or score distribution parameters to see how the metrics change.""")
+* The thresholds selected for EC1 are highly suboptimal for EC2, and conversely.
+* For this particular data, the decisions would be the same if we optimize the threshold for EC2 or FS.
+* You can play with the priors, costs, or score distribution parameters to see how the metrics change.
+* Plots all three metrics as a function of the threshold can be found in the %s dir."""%outdir)
 

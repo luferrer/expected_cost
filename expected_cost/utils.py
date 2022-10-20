@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
-from scipy.special import expit, logit
+from scipy.special import expit, logit, logsumexp 
+import os
+from IPython import embed
 
 def make_hist(targets, scores, classi=0, nbins=100):
     """ Plot the histogram for the scores output by the system for
@@ -49,16 +51,6 @@ def make_hist(targets, scores, classi=0, nbins=100):
     return centers, hists
     
 
-def get_llr_for_gaussian_model(scores, mean0, mean1, std0, std1):
-    """ Assuming that the input scores have a Gaussian distribution
-    for each class, get the log-likelihood ratio for the input scores.
-    """
-
-    p_of_x_given_class1 = scipy.stats.norm(mean1, std1).pdf(scores)
-    p_of_x_given_class0 = scipy.stats.norm(mean0, std0).pdf(scores)
-
-    return np.log(p_of_x_given_class1/p_of_x_given_class0)
-
 
 def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
     """ Compute the error rates given the number of missclassifications, K01 and K10, 
@@ -72,9 +64,10 @@ def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
     cm = np.array([[N0-K01, K01],[K10, N1-K10]])
     R = cm/cm.sum(axis=1, keepdims=True)
     return R
+    
 
-def bayes_thr_for_binary_classif(priors, costs):
-    """ This method computes the bayes threshold when the cost matrix has 
+def bayes_thr_for_llrs(priors, costs):
+    """ This method computes the bayes threshold on the LLRs when the cost matrix has 
     the following form:
                          0  c01
                         c10  0
@@ -86,6 +79,67 @@ def bayes_thr_for_binary_classif(priors, costs):
 
     return np.log(priors[0]/priors[1]*cmatrix[0,1]/cmatrix[1,0])
 
+
+def llrs_to_logpost(llrs, priors):
+    """ Compute the log posterior from the log-likelihood-ratios (llrs):
+
+    logpost_class1 = log 1/(1+ e^(-logodds))
+                   = - log(1 + e^(-logodds))
+
+    where [P0, P1] = priors are the class priors and
+
+    logodds = -llr-log(P1/P0)
+
+    """
+
+    logodds = llrs + np.log(priors[1]/priors[0])
+
+    logpost_class1 = - logsumexp(np.c_[np.zeros_like(logodds), -logodds], axis=1)
+    logpost_class0 = - logsumexp(np.c_[np.zeros_like(logodds), +logodds], axis=1)
+
+    return np.c_[logpost_class0, logpost_class1]
+
+
+def llks_to_logpost(llks, priors):
+    """ Compute the log posterior from the log potentially-scaled likelihoods.
+    The scale (a factor independent of the class, usually p(x)), does not matter 
+    in this computation because it dissapears when we normalize the posteriors. 
+    """
+
+    log_posteriors_unnormed = llks + np.log(priors)
+    return log_posteriors_unnormed - logsumexp(log_posteriors_unnormed, axis=1, keepdims=True)
+
+
+def logpost_to_log_scaled_lks(logpost, priors):
+    """ Compute the log scaled likeliihoods from the log posteriors, 
+    given the priors:
+
+    log_scaled_lk = log(p(x|c) / p(x))
+                  = log(P(c|x) / P(c))
+                  = logpost - log(priors)
+
+    """
+
+    return logpost - np.log(priors)
+
+
+def logpost_to_llrs(logpost, priors):
+    """ Compute the log-likeliihood ratio (for binary classification) from the 
+    log posteriors, given the priors:
+
+    llr = log(p(x|c=1) / p(x|c=0))
+        = log(P(c=1|x) / P(c=0|x) * P(c=0) / P(c=1))
+        = logpost_1 - logpost_0 - log(priors[1]) + log(priors[0])
+
+    """
+
+    return logpost[:,1] - logpost[:,0] - np.log(priors[1]) + np.log(priors[0])
+
+
+def mkdir_p(dir):
+
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
 
 
 #########################################################################################
