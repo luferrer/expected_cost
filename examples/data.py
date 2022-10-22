@@ -15,7 +15,17 @@ except:
     has_psr = False
 
 
-def get_scaled_llks_for_multi_classif_task(dataset, priors=None, K=100000):
+def get_llks_for_multi_classif_task(dataset, priors=None, K=100000):
+    """ Load or create multi-class log (potentially scaled) likelihoods (llks).
+    The cifar10 example can be modified to load your own set of scores.
+    If they are posteriors instead of llks, you can either: 
+    * ignore this fact and have this method output the posteriors (in this case,  
+      remember to call the expected cost methods with score_type="log-posteriors")
+    * convert them to estimated llks by subtracting log(priors) estimated based
+      on the training data and procedure
+    * calibrate them using psrcal with uniform external priors to get log scaled
+      likelihoods.
+    """"
 
     if 'cifar10' in dataset:
 
