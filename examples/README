@@ -15,11 +15,13 @@ indexing.
 
 
 The following scripts compute different variants of the expected cost, 
-comparing results on raw and calibrated scores. The data used as input
-can be changed to your own data (note that the some of the comments 
-printed by scripts will no longer apply if you change the input data).
+comparing results on raw and calibrated scores. 
 
 PYTHONPATH=../ python ec_analysis_for_a_2class_problem.py
 PYTHONPATH=../ python ec_analysis_for_a_nclass_problem.py
 
-
+The data used as input can be changed to your own data (note that the 
+some of the comments printed by scripts will no longer apply if you 
+change the input data). To do this, you can add a new option in the 
+methods in data.py. You can follow the examples corresponding to 
+cifar10. 
