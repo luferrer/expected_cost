@@ -6,7 +6,8 @@ from data import get_llrs_for_bin_classif_task
 adjusted_cost = True
 
 # Template for analysis of binary classification scores. To change the input
-# data, you can add your own loading process in the get_llrs_for_bin_classif_task.
+# data, you can add your own loading process in the get_llrs_for_bin_classif_task
+# in the data.py file.
 
 P1 = 0.1
 priors = [(1-P1), P1]
@@ -16,16 +17,17 @@ cal_logpost = utils.llrs_to_logpost(cal_llrs, priors)
 
 
 # Now, compute a family of cost matrices varying the cost for one of the classes
-# in the log domain and leaving the other one fixed at 1.
+# (in the log domain) and leaving the other one fixed at 1.
 # For each of these matrices compute the cost for maximum-a-posterior
 # decisions and the cost for Bayes decisions.
-# Also, compute the cost we would get by finding the  decision threshold empirically to 
-# optimize the specific cost function. 
-map_decisions = np.argmax(raw_logpost, axis=-1)
+# Also, compute the cost we would get by finding the decision threshold empirically 
+# to optimize the specific cost function. 
 
 print("*** Average cost for cost matrix = [[0 1] [alpha 0]]\n")
 
 print("Alpha        MAP         Bayes  Bayes_after_cal Optimal")
+
+map_decisions = np.argmax(raw_logpost, axis=-1)
 
 for logalpha in np.arange(-4, 4, 0.5):
 
@@ -67,8 +69,8 @@ for logalpha in np.arange(-4, 0.5, 0.5):
 
 
 print("""\nNote that
-* The lower the cost of abstention, the more samples get this label and the worse the MAP decisions are (which 
-  do not have the abstention option). 
+* The lower the cost of abstention, the more samples get this label and the worse the MAP decisions are (since 
+  they do not take advantage of the abstention option). 
 * If the cost of abstention is too high, the system never chooses to abstain.
 * The cost is much lower after calibration, showing again that, for this data, the original scores were 
   not well-calibrated across all possible operating points. 
