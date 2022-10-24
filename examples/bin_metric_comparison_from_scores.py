@@ -6,6 +6,9 @@ from expected_cost import ec, utils
 from data import get_llrs_for_bin_classif_task
 import re
 
+# Script used to generate some of the results in 
+# "Analysis and Comparison of Classification Metrics", arXiv:2209.05355
+
 
 def plot_vertical_line(x, ylim, style):
     plt.plot([x,x], ylim, style)

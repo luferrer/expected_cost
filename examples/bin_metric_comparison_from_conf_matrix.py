@@ -7,6 +7,10 @@ from expected_cost import ec, utils
 from data import get_llrs_for_bin_classif_task
 
 
+# Script used to generate some of the results in 
+# "Analysis and Comparison of Classification Metrics", arXiv:2209.05355
+
+
 outdir = "outputs/metric_comparison_with_conf_matrix"
 utils.mkdir_p(outdir)
 

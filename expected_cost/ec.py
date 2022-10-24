@@ -15,27 +15,34 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     and balanced error rate (1-balanced accuracy) for cases in which the
     different  types of error have different costs.  It is given by:
 
-    :math:`\sum_j \sum_i c_{ij} P_i R_{ij}`
+    1/N sum_n cost(n) 
 
-    where :math:`c_{ij}` is the cost assigned to decision j when the true
-    class is i, :math:`P_i` is the prior probability of class i, and
-    :math:`R_{ij}`  is the fraction of samples of class i for which decision j
-    was made.
+    where the sum goes over all the N test samples and cost(n) is the cost
+    incurred for sample n. This expression can be  converted into the
+    following double sum, by observing that the cost is the same for all
+    samples for which the class and the decision is  the same:
 
-    Note that class priors can be set to arbitrary values, which is 
-    useful when the priors in the evaluation data do not coincide with the
-    ones expected at deployment of the system. In this case, the priors can 
-    be set to the expected ones and the priors in the data will be ignored. 
+    sum_j sum_i c_{ij} P_i R_{ij}
+
+    where c_{ij} is the cost assigned to decision j when the true class is i,
+    P_i is the fraction of samples that belong to class i, ie, the empirical
+    prior of class i in the test data, and R_{ij}  is the fraction of samples
+    of class i for which decision j was made.
+
+    Note that class priors can be set to arbitrary values, which is  useful
+    when the priors in the evaluation data do not coincide with the ones
+    expected at deployment of the system. In this case, the priors can  be set
+    to the expected ones and the priors in the data will be ignored.
 
     Finally, the average cost allows the set of the decisions to be different
     from the set of targets. This can be used, for example, in cases in which
     what needs to be evaluated are actions taken based on the system's output.
-    The decisions could, for example, include a ``reject'' option that makes
-    no decision about the class when the system is not certain enough to 
-    select any class.
+    The decisions could, for example, include an ``abstain'' option to make no
+    decision about the class when the system is not certain enough to  select
+    any class.
 
     When using adjusted=True, the average cost is divided by the performance
-    of a naïve system that always chooses the same lower-cost decision. Hence,
+    of a naïve system that always chooses the same lowest-cost decision. Hence,
     for the adjusted cost, any value above 1.0 implies that the system is worse
     than the naïve system.
 
@@ -130,7 +137,7 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
 
 def average_cost_from_confusion_matrix(R, priors, costs, adjusted=False):
     """Compute the average cost as in the average_cost method but taking
-    the confusion matrix as input.
+    a confusion matrix as input.
 
     Parameters 
     ----------
@@ -263,9 +270,9 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
     are those that optimize the given cost function assuming the system produces
     well-calibrated posteriors. They are given by:
 
-    :math:`\argmin_j \sum_i c_{ij} p_i`
+    argmin_j sum_i c_{ij} p_i
 
-    where :math:`p_i` is the posterior for class i for the sample.
+    where p_i is the posterior for class i for the sample.
     
     For flexibility, three options are considered for the input scores:
 
@@ -277,34 +284,25 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
 
         * Scores are log_posteriors. Same comments as above apply.
 
-        * Scores are log_likelihoods. In this case, the priors are used to 
-          convert these scores into posteriors using Bayes rule:
+        * Scores are log potentially-scaled likelihoods. In this case, the
+          priors are used to convert these scores into posteriors using Bayes
+          rule:
 
-          :math:`p_i = lk_i prior_i / \sum_j  lk_j prior_j`
+          p_i = lk_i prior_i / sum_j  lk_j prior_j
           
           where lk is exp(log_likelihood). 
 
           Note that, given that a normalization is needed to obtained the
           posteriors the likelihoods provided can be scaled by a factor that
-          does not depend on the classes and it will not affect results. For
-          example, the scores could simply be
-
-          score_i = log(posterior_from_model_for_class_i/prior_class_i)
-          
-          where the prior should be the one obtained by averaging the posterior
-          over the evaluation data. These scores can then be used as input to 
-          this method setting score_type="log_likelihoods". For more on this, 
-          see the average_cost_for_bayes_decisions method.
-          Note that the log-scale is important here to avoid numerical issues 
-          during the normalization.
+          does not depend on the classes and it will not affect results. 
 
         * Scores are log-likelihoood-ratio. This is only a valid input score when
           the task is binary classification. In this case, the posterior for class
           0 is obtained as:
 
-          :math:`p_0 = sigmoid(log-likelihoood-ratio + np.log(prior_0/prior_1))`
+          p_0 = sigmoid(log-likelihoood-ratio + np.log(prior_0/prior_1))
           
-          and :math:`p_1 = 1 - p_0`
+          and p_1 = 1 - p_0
 
     Parameters 
     ----------
@@ -327,7 +325,7 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
     score_type : string describing the type of input score. Default=log_posteriors.
         It can be: posteriors, log_posteriors, log_likelihoods or log_likelihood_ratios.
 
-    silent : If true, a warning is output when posteriors and priors are provided.
+    silent : If False, a warning is output when posteriors and priors are provided.
 
     """
 
@@ -380,7 +378,6 @@ def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors')
 
 
 class cost_matrix:
-    
     """ 
     Utility class to define and work with cost matrices. The cost matrix has one
     row per true class and  one column per decision. Entry (i,j) in the matrix
@@ -440,11 +437,10 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
     assuming that the scores can be used to obtain well-calibrated
     posteriors. 
 
-    Note that if the scores are posteriors or log- posteriors and the
+    Note that if the scores are posteriors or log-posteriors and the
     priors in the data, or those provided externally, are not well
-    matched to those used to train the system, the cost will higher
-    than it could be. In this case, calibration (or adjustment of the
-    priors) may result in better costs.
+    matched to those used while training the system, the cost will 
+    not be optimal. 
     
     Parameters 
     ----------
@@ -511,7 +507,7 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
                             c10  0
 
     The optimal decisions are made by choosing the decision threshold on the
-    posterior for class 0 to the one that optimizes the cost function defined by
+    posterior for class 1 to the one that optimizes the cost function defined by
     the costs and priors. This is the minimum cost that can be obtained on this
     data if one could estimate the threshold perfectly, i.e., it is optimistic
     as it cheats in the selection of the threshold, but it is useful as a reference
@@ -528,7 +524,7 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
         raise ValueError("This method is only valid for cost matrices of the form: [[0, c01], [c10, 0]]")
 
     if sample_weight is not None:
-        raise ValueError("sample_weight option not yet implemented")
+        raise ValueError("sample_weight option not implemented for this method")
 
 
     posteriors = get_posteriors_from_scores(scores, priors, score_type)
@@ -545,8 +541,8 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
 
     # Below, we create vectors R01 and R10 which will contain
     # the two error rates for all possible threshold values.
-    # R10 is the fraction of samples from class 1 labelled as
-    # class 0
+    # Rij is the fraction of samples from class i labelled as
+    # class j
 
     sum1 = np.cumsum(post1_with_target[:,1])
     sum0 = N0 - (np.arange(1,N+1)-sum1)

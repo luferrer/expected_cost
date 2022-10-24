@@ -33,7 +33,7 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000):
     * convert them to estimated llks by using logpost_to_log_scaled_lks where the 
       priors can be estimated as those used in training.
 
-    """"
+    """
 
     if 'cifar10' in dataset:
 
@@ -122,7 +122,7 @@ def get_llrs_for_bin_classif_task(dataset, prior1=None, K=100000):
       remember to call the expected cost methods with score_type="log-posteriors")
     * convert them to estimated llrs using logpost_to_llrs with priors estimated 
       based on the training data and procedure
-    """"
+    """
 
     if 'cifar10_first2classes' in dataset:
 
