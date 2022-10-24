@@ -77,8 +77,6 @@ for score_name, scores in score_dict.items():
         metric_dict['EC1'].append(ec.average_cost_from_confusion_matrix(R, priors_unif, costs_01, adjusted=True))
         metric_dict['EC2'].append(ec.average_cost_from_confusion_matrix(R, priors_data, costs_0b, adjusted=True))
         metric_dict['FS'].append(utils.Fscore(K10, K01, N0, N1))
-        #metric_dict['MCC'].append(utils.MCCoeff(K10, K01, N0, N1))
-
 
     for metric_name, metric_list in metric_dict.items():
         metric_dict[metric_name] = np.array(metric_list)
@@ -87,7 +85,6 @@ for score_name, scores in score_dict.items():
     plt.plot(thrs, metric_dict['EC1'], label=r'$\mathrm{NEC}_u$', color=colors['EC1'])
     plt.plot(thrs, metric_dict['EC2'], label=r'$\mathrm{NEC}_{\beta^2=2}$', color=colors['EC2'])
     plt.plot(thrs, 1-metric_dict['FS'], label=r'$1-\mathrm{FS}_{\beta=1}$', color=colors['FS'])
-   # plt.plot(thrs, -metric_dict['MCC'], label="-1 * MCC", color=colors['MCC'])
 
     thr_dict = dict()
     thr_dict['bayes_thr_for_EC1'] = utils.bayes_thr_for_llrs(priors_unif, costs_01)
@@ -95,7 +92,6 @@ for score_name, scores in score_dict.items():
     thr_dict['bayes_thr_for_EC2'] = utils.bayes_thr_for_llrs(priors_data, costs_0b)
     thr_dict['best_thr_for_EC2']  = thrs[np.nanargmin(metric_dict['EC2'])]
     thr_dict['best_thr_for_FS']   = thrs[np.nanargmin(1-metric_dict['FS'])]
-    #thr_dict['best_thr_for_MCC']  = thrs[np.nanargmin(-metric_dict['MCC'])]
 
     ylim = plt.ylim()
     for metric in metrics:
@@ -123,11 +119,13 @@ for score_name, scores in score_dict.items():
 
 
 print("""Note that:
-* The metrics are immune to calibration issues when computed for decisions made with thresholds optimized for any metric.
+* The metrics are immune to calibration issues when computed for decisions made with thresholds optimized 
+  for any metric.
 * With FS we have no way to tell if we have a calibration problem.
-* With EC, we can compare the metric for the bayes and the best threshold. If the first is much worse than the latter, then we know we have a calibration problem.
+* With EC, we can compare the metric for the bayes and the best threshold. If the first is much worse than 
+  the latter, then we know we have a calibration problem.
 * The thresholds selected for EC1 are highly suboptimal for EC2, and conversely.
 * For this particular data, the decisions would be the same if we optimize the threshold for EC2 or FS.
 * You can play with the priors, costs, or score distribution parameters to see how the metrics change.
-* Plots all three metrics as a function of the threshold can be found in the %s dir."""%outdir)
+* Plots for all three metrics as a function of the threshold can be found in the %s dir."""%outdir)
 
