@@ -1,27 +1,16 @@
 
---------------------------------------------------------------------
-
 The following scripts create the plots and tables needed for the paper
 "Analysis and Comparison of Classification Metrics", arXiv:2209.05355
 
+
 PYTHONPATH=../ python bin_metric_comparison_from_conf_matrix.py
 PYTHONPATH=../ python bin_metric_comparison_from_scores.py
+PYTHONPATH=../ python ec_and_calibration_analysis.py
 
 Note that, unlike in the paper where class indices go from 1 to C, in
 this code the class indices go from 0 to C-1 since python has 0-based
 indexing.
 
---------------------------------------------------------------------
-
-
-The following scripts compute different variants of the expected cost, 
-comparing results on raw and calibrated scores. 
-
-PYTHONPATH=../ python ec_analysis_for_a_2class_problem.py
-PYTHONPATH=../ python ec_analysis_for_a_nclass_problem.py
-
-The data used as input can be changed to your own data (note that the 
-some of the comments printed by scripts will no longer apply if you 
-change the input data). To do this, you can add a new option in the 
-methods in data.py. You can follow the examples corresponding to 
-cifar10. 
+The data used as input to these scripts can be changed to your own data. To do
+this, you can add a new option in the  methods in data.py. You can follow the
+example corresponding to  cifar10.

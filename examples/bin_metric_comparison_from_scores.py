@@ -1,13 +1,13 @@
+# Script used to generate some of the results in 
+# "Analysis and Comparison of Classification Metrics", arXiv:2209.05355
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 from scipy.special import expit, logit, logsumexp 
 from expected_cost import ec, utils
-from data import get_llrs_for_bin_classif_task
+from data import get_llks_for_multi_classif_task
 import re
-
-# Script used to generate some of the results in 
-# "Analysis and Comparison of Classification Metrics", arXiv:2209.05355
 
 
 def plot_vertical_line(x, ylim, style):
@@ -23,7 +23,14 @@ def value_at_thr(values, thrs, sel_thr):
 outdir = "outputs/metric_comparison_from_scores"
 utils.mkdir_p(outdir)
 
-targets, raw_scores, cal_scores = get_llrs_for_bin_classif_task('gaussian_sim', prior1=0.1)
+# Get llks and then convert them to LLRs, just because it makes them
+# nicer for plotting and for interpretation of the scores.
+# Note, though, that LLRs are just log scaled likelihoods where the scale is 
+# given by the likelihood for the first class. 
+targets, raw_llks, cal_llks = get_llks_for_multi_classif_task('gaussian_sim', priors=[0.9, 0.1])
+raw_scores = raw_llks[:,1] - raw_llks[:,0]
+cal_scores = cal_llks[:,1] - cal_llks[:,0]
+
 N0 = sum(targets==0)
 N1 = sum(targets==1)
 K = N0 + N1
