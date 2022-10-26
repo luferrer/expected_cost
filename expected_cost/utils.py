@@ -4,6 +4,25 @@ import scipy.stats
 from scipy.special import expit, logit, logsumexp 
 import os
 
+
+def plot_hists(targets, scores, outfile):
+
+    num_targets = scores.shape[1]
+    fig, axs = plt.subplots(num_targets, figsize=(4,2*num_targets))
+    for classi in np.arange(num_targets):
+        ax = axs[classi]
+        c, hs = make_hist(targets, scores, classi=classi)
+        for j, h in enumerate(hs):
+          ax.plot(c, h, label="samples of class %d"%j)
+          #m = np.mean(scores[targets==j,classi])
+          #ax.plot([m,m],ax.get_ylim())
+        ax.legend()
+        ax.set_title("Scores for class %d"%classi)
+
+    plt.tight_layout()
+    plt.savefig(outfile)
+
+
 def make_hist(targets, scores, classi=0, nbins=100):
     """ Plot the histogram for the scores output by the system for
     one of the classes.
