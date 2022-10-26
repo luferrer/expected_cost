@@ -350,7 +350,7 @@ def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors')
     """ Convert scores into posteriors depending on their type. See method
     bayes_decisions for more details."""
 
-    if 'posterior' in score_type:
+    if score_type == 'posteriors' or score_type == 'log_posteriors':
         # In this case, priors are ignored
         posteriors = np.exp(scores) if score_type == "log_posteriors" else scores
 
