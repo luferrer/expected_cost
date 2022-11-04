@@ -27,7 +27,8 @@ utils.mkdir_p(outdir)
 # nicer for plotting and for interpretation of the scores.
 # Note, though, that LLRs are just log scaled likelihoods where the scale is 
 # given by the likelihood for the first class. 
-targets, raw_llks, cal_llks = get_llks_for_multi_classif_task('gaussian_sim', priors=[0.9, 0.1])
+targets, raw_llks, cal_llks = get_llks_for_multi_classif_task('gaussian_sim', priors=[0.9, 0.1], sim_params={'feat_std':0.15, 'score_scale':0.5, 'score_shift': [0.5,0]})
+
 raw_scores = raw_llks[:,1] - raw_llks[:,0]
 cal_scores = cal_llks[:,1] - cal_llks[:,0]
 
@@ -36,13 +37,13 @@ N1 = sum(targets==1)
 K = N0 + N1
 
 # Plot the resulting distributions
-plt.figure()
+plt.figure(figsize=(3.5,2.5))
 c, hs = utils.make_hist(targets, raw_scores)
-plt.plot(c, hs[1], 'r-', label='raw_scores')
+plt.plot(c, hs[1], 'r-', label='miscalibrated scores')
 plt.plot(c, hs[0], 'r:')
 
 c, hs = utils.make_hist(targets, cal_scores)
-plt.plot(c, hs[1], 'b-', label='cal_scores')
+plt.plot(c, hs[1], 'b-', label='calibrated scores')
 plt.plot(c, hs[0], 'b:')
 plt.legend()
 
@@ -51,7 +52,7 @@ plt.savefig("%s/score_dists.pdf"%outdir)
 # Now, we take raw and calibrated scores and choose a bunch of
 # different decision thresholds and compute a few metrics
 # for each case.
-score_dict = {'raw_scores': raw_scores, 'cal_scores': cal_scores}
+score_dict = {'miscal_scores': raw_scores, 'cal_scores': cal_scores}
 
 # We consider two priors, the ones in the data and the uniform one
 priors_data = np.array([N0/K, N1/K])

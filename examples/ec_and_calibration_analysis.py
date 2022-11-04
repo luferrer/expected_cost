@@ -6,17 +6,39 @@ from scipy.special import logsumexp
 from expected_cost import ec, utils
 from data import get_llks_for_multi_classif_task
 import matplotlib.pyplot as plt
+import re
+from IPython import embed
 
 import sys
 try:
     import torch    
     from expected_cost.calibration import affine_calibration_with_crossval
+    from psrcal.losses import LogLoss, ECE, Brier, CalLossBrier, CalLossLogLoss
     has_psr = True
 except:
     has_psr = False
     print("PSR code not available, skipping calibration experiments.")
 
+
 adjusted_cost = True
+latex_tables = False
+
+sep1 = "&" if latex_tables else " "
+sep2 = " " if latex_tables else "|"
+sep3 = "\\\\" if latex_tables else ""
+
+def print_header(metric_dict, score_dict):
+
+    print("%-30s  %s"%("",sep2), end='')
+    for metric_name, metric in metric_dict.items():
+        print("     %-24s %s"%(metric_name,sep2), end='')
+    print("")
+    print("%-30s  %s"%("Score_type",sep2), end='')
+    for metric_name, metric in metric_dict.items():
+        for rc in score_dict.keys():
+            print("%s   %s   "%(sep1,rc), end='')
+        print("%s"%sep2, end='')
+    print("%s"%sep3)
 
 outdir = "outputs/ec_and_calibration_analysis"
 utils.mkdir_p(outdir)
@@ -24,62 +46,61 @@ utils.mkdir_p(outdir)
 #########################################################################################################
 """ Generate a bunch of different scores for a C class problem (C can be changed to whatever you like):
 
-* raw_llks: raw log scaled likelihoods with Gaussian class distributions
+* llks: log scaled likelihoods with Gaussian class distributions
 
-* cal_llks: calibrated log scaled likelihoods obtained by evaluating those Gaussian distribution on the raw_llks
+* logpost Datap: log-posteriors obtained from the llks applying the true data priors
 
-* raw/cal_logpost_datap: log-posteriors obtained from the llks applying the true data priors
-
-* raw/cal_logpost_mismp: log-posteriors obtained from the llks applying the mismatched data priors 
+* logpost Mismp: log-posteriors obtained from the llks applying the mismatched data priors 
   to simulate a system that was trained with the wrong priors
 
-* raw/cal_logpost_calto_llks: calibrated version of raw/cal_logpost where calibration is done 
-  using uniform target priors which should produce an estimate of the log scaled lks. Note that
-  it does not matter which of the two logpost (datap or mismp) are used here as input since the
-  calibration compensates for any shift in the scores produced by the priors.
+* for each of those posteriors, two calibrated versions, using an affine transformation and
+  temp scaling
 
-* raw/cal_logpost_calto_logpost_with_data_priors: calibrated version of raw/cal_logpost where 
-  calibration is done using the data priors to directly produce logposteriors that are matched
-  to the test data.
+Further, two llk versions are used (cal, mc1): miscalibrated and calibrated ones, resulting in two versions 
+of each of the above posteriors. Finally, another miscalibrated version of the posteriors (mc2) is 
+created by scaling the log-posteriors directly.
 """
 
-C = 4
-p0 = 0.9
+C = 10
+p0 = 0.9 # 0.9 for the paper
 data_priors = np.array([p0] + [(1-p0)/(C-1)]*(C-1))
 mism_priors = np.array([(1-p0)/(C-1)]*(C-1) + [p0])
 unif_priors = np.ones(C)/C
 
-targets, raw_llks, cal_llks = get_llks_for_multi_classif_task('gaussian_sim', priors=data_priors, std=0.1, mean0=0)
+score_dict = {'cal':{}, 'mc1':{}, 'mc2':{}}
+
+# Parameters with which to misscalibrate the scores
+shift_for_raw_llks = np.zeros(C) 
+shift_for_raw_llks[0] = 0.5 # 0.5 for paper
+score_scale1 = 0.5 # 0.5 for paper
+score_scale2 = 0.2
+targets, score_dict['mc1']['llks'], score_dict['cal']['llks'] = get_llks_for_multi_classif_task('gaussian_sim', priors=data_priors, 
+          sim_params={'feat_std':0.15, 'score_scale':score_scale1, 'score_shift': shift_for_raw_llks}, K=10000)
+
 num_targets = np.max(targets)+1
 
-raw_logpost_datap = utils.llks_to_logpost(raw_llks, data_priors)
-cal_logpost_datap = utils.llks_to_logpost(cal_llks, data_priors)
+for rc in ['cal', 'mc1', 'mc2']:
 
-raw_logpost_mismp = utils.llks_to_logpost(raw_llks, mism_priors)
-cal_logpost_mismp = utils.llks_to_logpost(cal_llks, mism_priors)
+    if rc != 'mc2':
+        llks = score_dict[rc]['llks']
+        score_dict[rc]['Datap'] = utils.llks_to_logpost(llks, data_priors)
+        score_dict[rc]['Mismp'] = utils.llks_to_logpost(llks, mism_priors)
+    else:
+        # Miscalibrate the posteriors by scaling them and renormalizing
+        for pr in ['Datap', 'Mismp']:
+            score_dict[rc][pr] = score_scale2 * score_dict['cal'][pr]
+            score_dict[rc][pr] -= logsumexp(score_dict[rc][pr], axis=1, keepdims=True)
 
-if has_psr:
-  raw_logpost_calto_llks                     = affine_calibration_with_crossval(raw_logpost_mismp, targets, priors=unif_priors)
-  raw_logpost_calto_logpost_with_data_priors = affine_calibration_with_crossval(raw_logpost_mismp, targets, priors=data_priors)
-  cal_logpost_calto_llks                     = affine_calibration_with_crossval(cal_logpost_mismp, targets, priors=unif_priors)
-  cal_logpost_calto_logpost_with_data_priors = affine_calibration_with_crossval(cal_logpost_mismp, targets, priors=data_priors)
+    if has_psr:
+        for pr in ['Datap', 'Mismp']:
+            #score_dict[rc]['Post-%s-affcal_llks'%pr] = affine_calibration_with_crossval(score_dict[rc]['Post-%s'%pr], targets, priors=unif_priors)
+            score_dict[rc]['%s-affcal'%pr]      = affine_calibration_with_crossval(score_dict[rc][pr], targets)
+            score_dict[rc]['%s-temcal'%pr]      = affine_calibration_with_crossval(score_dict[rc][pr], targets, use_bias=False)
+        
+    # Plot the resulting score distributions 
+    for score_name, scores in score_dict[rc].items():
+        utils.plot_hists(targets, scores, "%s/dists_%s_%s_C=%d.pdf"%(outdir,rc,score_name,num_targets))
 
-# Make a dictionary of the available scores:
-score_dict = {'raw_llks': raw_llks,
-              'raw_logpost_datap': raw_logpost_datap,
-              'raw_logpost_mismp': raw_logpost_mismp,
-              'raw_logpost_calto_llks': raw_logpost_calto_llks,
-              'raw_logpost_calto_logpost_with_data_priors': raw_logpost_calto_logpost_with_data_priors,
-              'cal_llks': cal_llks,
-              'cal_logpost_datap': cal_logpost_datap,
-              'cal_logpost_mismp': cal_logpost_mismp,
-              'cal_logpost_calto_llks': cal_logpost_calto_llks,
-              'cal_logpost_calto_logpost_with_data_priors': cal_logpost_calto_logpost_with_data_priors}
-
-
-# Plot the resulting score distributions 
-for score_name, scores in score_dict.items():
-  utils.plot_hists(targets, scores, "%s/dists_%s_C=%d.pdf"%(outdir,score_name,num_targets))
 
 #########################################################################################################
 # First, using the logposteriors computed with matched priors, compute a
@@ -93,11 +114,11 @@ print("Average cost for cost matrix with c_ii = 0, c_ij = 1 for i!=j and i!=C, a
 print("Using raw and calibrated log posteriors computed with the data priors\n")
 
 if num_targets == 2:
-  print("Alpha        MAP         Bayes  Bayes_after_cal Optimal")
+  print("Alpha        MAP         NEC_Bayes  NEC_Bayes_after_cal Optimal")
 else:
-  print("Alpha        MAP         Bayes  Bayes_after_cal")
+  print("Alpha        MAP         NEC_Bayes  NEC_Bayes_after_cal")
 
-map_decisions = np.argmax(raw_logpost_datap, axis=-1)
+map_decisions = np.argmax(score_dict['mc1']['Datap'], axis=-1)
 
 for logalpha in np.arange(-4, 4, 0.5):
 
@@ -107,11 +128,11 @@ for logalpha in np.arange(-4, 4, 0.5):
     cost = ec.cost_matrix(costm)  
 
     ec_map                = ec.average_cost(targets, map_decisions, cost, adjusted=adjusted_cost)
-    ec_bayes,           _ = ec.average_cost_for_bayes_decisions(targets, raw_logpost_datap, cost, adjusted=adjusted_cost)
-    ec_bayes_after_cal, _ = ec.average_cost_for_bayes_decisions(targets, cal_logpost_datap, cost, adjusted=adjusted_cost)
+    ec_bayes,           _ = ec.average_cost_for_bayes_decisions(targets, score_dict['mc1']['Datap'], cost, adjusted=adjusted_cost)
+    ec_bayes_after_cal, _ = ec.average_cost_for_bayes_decisions(targets, score_dict['cal']['Datap'], cost, adjusted=adjusted_cost)
 
     if num_targets == 2:
-      ec_min                = ec.average_cost_for_optimal_decisions(targets, raw_logpost_datap, cost, adjusted=adjusted_cost)
+      ec_min                = ec.average_cost_for_optimal_decisions(targets, score_dict['mc1']['Datap'], cost, adjusted=adjusted_cost)
       print("%6.3f      %6.3f      %6.3f      %6.3f      %6.3f"%(alpha, ec_map, ec_bayes, ec_bayes_after_cal, ec_min))
     else:
       print("%6.3f      %6.3f      %6.3f      %6.3f "%(alpha, ec_map, ec_bayes, ec_bayes_after_cal,))
@@ -130,18 +151,25 @@ print("""\nNote that:
 print("*********************************************************************************************************************************")
 print("Average cost for cost matrix with c_ii=0, c_ij=1 for i!=j, and with a last column for an abstention decision with cost alpha.")
 print("Using raw and calibrated log posteriors computed with the data priors\n")
-print("Alpha      MAP      Bayes    Perc_abstentions_with_Bayes   Bayes_after_cal  Perc_abstentions_with_Bayes_after_cal")
+print("Alpha   |   MAP    |  EC_Bayes  NEC_Bayes %Abs_with_Bayes   |  EC_Bayes_after_cal  NEC_Bayes_after_cal %Abs_with_Bayes_after_cal")
 
 
 for alpha in [0.01, 0.1, 0.2, 0.4, 0.6, 1.0]:
     cost = ec.cost_matrix.zero_one_costs(num_targets, abstention_cost=alpha)
 
     ec_map                                  = ec.average_cost(targets, map_decisions, cost, adjusted=adjusted_cost)
-    ec_bayes,           decisions,          = ec.average_cost_for_bayes_decisions(targets, raw_logpost_datap, cost, adjusted=adjusted_cost)
-    ec_bayes_after_cal, decisions_after_cal = ec.average_cost_for_bayes_decisions(targets, cal_logpost_datap, cost, adjusted=adjusted_cost)
+    ec_bayes,           decisions,          = ec.average_cost_for_bayes_decisions(targets, score_dict['mc1']['Datap'], cost, adjusted=adjusted_cost)
+    ec_bayes_after_cal, decisions_after_cal = ec.average_cost_for_bayes_decisions(targets, score_dict['cal']['Datap'], cost, adjusted=adjusted_cost)
+
+    ec_bayes_nonorm,           _ = ec.average_cost_for_bayes_decisions(targets, score_dict['mc1']['Datap'], cost, adjusted=False)
+    ec_bayes_after_cal_nonorm, _ = ec.average_cost_for_bayes_decisions(targets, score_dict['cal']['Datap'], cost, adjusted=False)
+
     perc_abs = np.sum(decisions==num_targets)/len(decisions)*100
     perc_abs_after_cal = np.sum(decisions_after_cal==num_targets)/len(decisions)*100
-    print("%6.3f   %6.3f    %6.3f        %6.1f                 %6.3f         %6.1f"%(alpha, ec_map, ec_bayes, perc_abs, ec_bayes_after_cal, perc_abs_after_cal))
+    if latex_tables:
+      print("%6.3f  & %6.3f & %6.3f &  %6.1f  & %6.3f  &   %6.3f  & %6.1f \\\\"%(alpha, ec_bayes_nonorm, ec_bayes, perc_abs, ec_bayes_after_cal_nonorm, ec_bayes_after_cal, perc_abs_after_cal))
+    else:
+      print("%6.3f  |  %6.3f  |   %6.3f      %6.3f       %6.1f      |   %6.3f    %6.3f         %6.1f"%(alpha, ec_map, ec_bayes_nonorm, ec_bayes, perc_abs, ec_bayes_after_cal_nonorm, ec_bayes_after_cal, perc_abs_after_cal))
       
 
 print("""\nNote that
@@ -160,59 +188,38 @@ if has_psr is False:
   print("*** Calibration analysis skipped since the psr package is not available")
   sys.exit(0)
 
-# Now we can evaluate the cross-entropy and a couple of expected costs (using Bayes decisions)
+# Now we can evaluate a couple of expected costs (using Bayes decisions) and other metrics
 # for each of these scores on the test data. In all cases we take the target priors to be the
 # ones in the test data. 
 
 cost_01 = ec.cost_matrix.zero_one_costs(num_targets)
-cost_ab3 = ec.cost_matrix.zero_one_costs(num_targets, abstention_cost=0.3)
 cost_ab1 = ec.cost_matrix.zero_one_costs(num_targets, abstention_cost=0.1)
-
-costm = 1-np.eye(num_targets)
-costm[-1,0:-1] = 2
-cost01a = ec.cost_matrix(costm)  
-
-cost_dict = {'cost_01': cost_01, 'cost_01_abs=0.1': cost_ab1, 'cost_01_abs=0.3': cost_ab3, 'cost_01_lastrow=2': cost01a}
+metric_dict = {'cost_01': cost_01, 'cost_01_abs=0.1': cost_ab1, 
+             'cross-entropy': LogLoss, 'brier-score': Brier}
 
 print("*********************************************************************************************************************************")
-print("""Four different ECs for different logposteriors computed using raw and calibrated likelihoods:
+print("PSRs for different scores computed using raw and calibrated likelihoods (see script header for details):\n")
 
-* logpost_datap: log-posteriors obtained from the raw/cal llks applying the true data priors
+print_header(metric_dict, score_dict)
 
-* logpost_mismp: log-posteriors obtained from the raw/cal llks applying mismatched data priors 
-  to simulate a system that was trained with the wrong priors
+for score_name in np.sort(list(score_dict['mc1'].keys())): 
 
-* logpost_calto_llks: calibrated version of logpost_mismp where calibration is done using
-  uniform target priors which produces an estimate of the log scaled lks.
-
-* logpost_calto_logpost_with_data_priors: calibrated version of logpost_mismp where calibration
-  is done using the data priors to directly produce logposteriors that are matched to the test data.\n""")
-
-print("%-50s | "%"", end='')
-for cost_name, cost in cost_dict.items():
-    print("  %-17s |"%cost_name, end='')
-print("")
-print("%-50s | "%"Score_type", end='')
-for cost_name, cost in cost_dict.items():
-    print("    raw      cal    |", end='')
-print("")
-
-for score_name in ['logpost_datap', 'logpost_mismp', 'logpost_calto_llks', 'logpost_calto_logpost_with_data_priors']: 
+    if 'llks' in score_name: continue
+    print("%-30s  %s"%(score_name,sep2), end='')
     
-    print("%-50s | "%score_name, end='')
-    
-    for cost_name, cost in cost_dict.items():
+    for metric_name, metric in metric_dict.items():
 
-        for raworcal in ['raw', 'cal']:
+        for rc in score_dict.keys():
 
-          scores = score_dict["%s_%s"%(raworcal, score_name)]
-          score_type = 'log_likelihoods' if 'llk' in score_name else 'log_posteriors'
-          ecval, _ = ec.average_cost_for_bayes_decisions(targets, scores, cost, priors=data_priors, adjusted=adjusted_cost, score_type=score_type, silent=True)
-          print("  %5.3f   "%ecval, end='')
+          scores = score_dict[rc][score_name]
+          if 'cost' in metric_name:
+            metric_value, _ = ec.average_cost_for_bayes_decisions(targets, scores, metric, adjusted=adjusted_cost, silent=True)
+          else:
+            metric_value = metric(torch.tensor(scores), torch.tensor(targets))
 
-        print("|", end='')
-
-    print('')
+          print("%s %6.2f  "%(sep1,metric_value), end='')
+        print("%s"%sep2, end='')
+    print('%s'%sep3)
 
 
 print("""\nNote that:
@@ -223,5 +230,34 @@ print("""\nNote that:
 * The last two rows show the effect of calibration using an affine calibration transformation. 
 * Note that the columns called cal correspond to perfectly calibrated likelihoods obtained from the distributions used
   for simulation. Hence, they should always be no worse than the scores calibrated with the affine model.\n""")
+
+print("*********************************************************************************************************************************")
+print("Calibration loss for different scores computed using raw and calibrated likelihoods (see script header for details):\n")
+
+metric_dict = {'Cal-loss-cross-entropy': CalLossLogLoss, 'Cal-loss-brier-score': CalLossBrier, 'ECE': ECE}
+
+
+print_header(metric_dict, score_dict)
+
+for score_name in np.sort(list(score_dict['mc1'].keys())): 
+
+    if 'llks' in score_name: continue
+    print("%-30s  %s"%(score_name,sep2), end='')
+    
+    for metric_name, metric in metric_dict.items():
+
+        for rc in score_dict.keys():
+
+          scores = score_dict[rc][score_name]
+          if metric_name == "ECE":
+            metric_value = metric(torch.tensor(scores), torch.tensor(targets))
+          else:
+            score_name_before_cal = re.sub("-...cal","", score_name)
+            cal_scores = score_dict[rc]["%s-affcal"%(score_name_before_cal)]
+            metric_value = metric(torch.tensor(scores), torch.tensor(cal_scores), torch.tensor(targets))
+
+          print("%s %6.2f  "%(sep1,metric_value), end='')
+        print("%s"%sep2, end='')
+    print('%s'%sep3)
 
 

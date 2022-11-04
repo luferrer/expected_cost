@@ -5,6 +5,7 @@ import numpy as np
 from scipy.stats import norm, multivariate_normal
 from scipy.special import logsumexp 
 from expected_cost import utils
+from IPython import embed
 
 try:
     import torch    
@@ -15,7 +16,7 @@ except:
     has_psr = False
 
 
-def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, std=1.0, mean0=-1.5):
+def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=None):
     """ Load or create multi-class log (potentially scaled) likelihoods (llks).
     The method outputs both the raw (potentially miscalibrated) scores and 
     calibrated scores.
@@ -63,37 +64,41 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, std=1.0, mea
 
     elif dataset == 'gaussian_sim':
 
+        if sim_params is None:
+            sim_params = {}
+
+        feat_std    = sim_params.get('feat_std', 1.0)
+        score_shift = sim_params.get('score_shift', 0)
+        score_scale = sim_params.get('score_scale', 1.0)
+        
         counts = np.array(np.array(priors)*K, dtype=int)
         C = len(counts)
 
-        # Create scores using a Gaussian distribution for each class. These scores will not
-        # necessarily be well calibrated. 
+        # Create data (features) using a Gaussian distribution for each class. 
+        # Make the features unidimensional for simplicity, with same std and
+        # evenly distributed means.
         print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%C)
         np.random.seed(0)
         
-        # We need C means, each of dimension C-1 (since the first 
-        # dimension of the simulated scores is always 0, because the
-        # scores are meant to be log scaled-likelihoods and the scale
-        # is taken to be the likelihood for the first class)
-        # We set these means to produce scores that tend to be larger
-        # for the true class.
-        #m = 
-        means = [mean0 * np.ones(C-1)] #[-0.5 * np.ones(C-1)]
-        for i in np.arange(1,C):
-            m = np.zeros(C-1)
-            m[i-1] = 1.0
-            means.append(m)
+        # Put the mean at 0, 1, ..., C-1. 
+        means = np.arange(0, C)
 
         # Use the same diagonal covariance matrix for all classes.
-        stds   = np.ones([C,C-1]) * std
+        # The value of std will determine the difficulty of the problem.
+        stds   = np.ones(C) * feat_std
 
-        # Draw scores from these distributions
-        raw_llks, targets = draw_scores_for_gaussian_model(means, stds, counts)
+        # Draw values from these distributions which we take to be
+        # (unidimensional) input features
+        feats, targets = draw_data_for_gaussian_model(means, stds, counts)
 
-        # Now get the LLRs given the model we chose for the distributions
-        # These new scores are well-calibrated by definition
-        cal_llks = get_llks_for_gaussian_model(raw_llks, means, stds)
+        # Now get the likelihoods for the features sampled above given the model.
+        # These are well-calibrated by definition, since we know the generating
+        # distribution.
+        cal_llks = get_llks_for_gaussian_model(feats, means, stds)
 
+        # Now generate misscalibrated llks with the provided shift and scale 
+        raw_llks = score_scale * cal_llks + score_shift
+    
     else:
         raise Exception("Unrecognized dataset name: %s"%dataset)
 
@@ -101,19 +106,18 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, std=1.0, mea
     return targets, raw_llks, cal_llks
 
 
+def print_score_stats(scores, targets):
 
-def draw_scores_for_gaussian_model(means, stds, counts):
+    for c in np.unique(targets):
+        scores_c = scores[targets==c]
+        print("Class %d :  mean  %5.2f    std   %5.2f"%(c, np.mean(scores_c, axis=0), np.std(scores_c, axis=0)))
+
+
+def draw_data_for_gaussian_model(means, stds, counts):
     """ 
-    Draw scores for C classes. The scores are meant to be (potentially)
-    misscalibrated log scaled likelihoods. We assume the scale is
-    given by the lk for the first class. Hence, the first component 
-    of the score vector is always 0 (log of 1). We assume that dimensions 
-    2 through C are Gaussian with diagonal covariance, with different 
-    means and stds for each class. 
-
+    Draw data for C classes each with unidimensional Gaussian distribution.
     The means, stds and counts arguments are lists of size C
-    containing the mean, std and number of samples for each class.
-    Each mean and std is a vector of dimension C-1. """
+    containing the mean, std and number of samples for each class. """
 
     scores = []
     targets = []
@@ -121,23 +125,19 @@ def draw_scores_for_gaussian_model(means, stds, counts):
         scores.append(multivariate_normal.rvs(mean, std, count))
         targets.append(np.ones(count)*i)
 
-    # Concatenate a column of 0s to the scores which corresponds to the
-    # log scaled likelihood for the last class.
     scores = np.concatenate(scores)
-    scores = np.c_[np.zeros(scores.shape[0]), scores]
-
     return scores, np.array(np.concatenate(targets), dtype=int)
 
 
-def get_llks_for_gaussian_model(scores, means, stds):
-    """ Assuming that the input scores were created with 
-    draw_scores_for_gaussian_model, get the log likelihoods
+def get_llks_for_gaussian_model(data, means, stds):
+    """ Assuming that the input data were created with 
+    draw_data_for_gaussian_model, get the log likelihoods
     for each class for the input scores.
     """
 
     llks = []
     for mean, std in zip(means, stds):
-        llks.append(np.atleast_2d(np.log(multivariate_normal(mean, std).pdf(scores[:,1:]))))
+        llks.append(np.atleast_2d(np.log(multivariate_normal(mean, std).pdf(data))))
 
     return np.concatenate(llks).T
 
