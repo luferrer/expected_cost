@@ -13,7 +13,7 @@ import sys
 try:
     import torch    
     from expected_cost.calibration import affine_calibration_with_crossval
-    from psrcal.losses import LogLoss, ECE, Brier, CalLossBrier, CalLossLogLoss
+    from psrcal.losses import LogLoss, ECE, Brier, CalLossBrier, CalLossLogLoss, plot_reliability_diagram
     has_psr = True
 except:
     has_psr = False
@@ -101,7 +101,6 @@ for rc in ['cal', 'mc1', 'mc2']:
     for score_name, scores in score_dict[rc].items():
         utils.plot_hists(targets, scores, "%s/dists_%s_%s_C=%d.pdf"%(outdir,rc,score_name,num_targets))
 
-
 #########################################################################################################
 # First, using the logposteriors computed with matched priors, compute a
 # family of cost matrices varying the costs for the last row (in the log
@@ -110,13 +109,13 @@ for rc in ['cal', 'mc1', 'mc2']:
 # decisions. 
 
 print("***************************************************************************************************************")
-print("Average cost for cost matrix with c_ii = 0, c_ij = 1 for i!=j and i!=C, and c_ij = alpha, for i!=j and i=C.")
-print("Using raw and calibrated log posteriors computed with the data priors\n")
+print("Average cost for cost matrix with c_ii = 0, c_ij = 1 for i!=j and i!=C, and c_ij = alpha, for i!=j and i=C, ")
+print("using calibrated (cal) and misscalibrated (mc1) log posteriors computed with the data priors\n")
 
 if num_targets == 2:
-  print("Alpha        MAP         NEC_Bayes  NEC_Bayes_after_cal Optimal")
+  print("Alpha        MAP_mc1     NEC_Bayes_mc1  NEC_Bayes_cal Optimal")
 else:
-  print("Alpha        MAP         NEC_Bayes  NEC_Bayes_after_cal")
+  print("Alpha        MAP_mc1     NEC_Bayes_mc1  NEC_Bayes_cal")
 
 map_decisions = np.argmax(score_dict['mc1']['Datap'], axis=-1)
 
@@ -149,9 +148,10 @@ print("""\nNote that:
   since the threshold is selected on the evaluation data itself.\n\n""")
 
 print("*********************************************************************************************************************************")
-print("Average cost for cost matrix with c_ii=0, c_ij=1 for i!=j, and with a last column for an abstention decision with cost alpha.")
-print("Using raw and calibrated log posteriors computed with the data priors\n")
-print("Alpha   |   MAP    |  EC_Bayes  NEC_Bayes %Abs_with_Bayes   |  EC_Bayes_after_cal  NEC_Bayes_after_cal %Abs_with_Bayes_after_cal")
+print("Average cost for cost matrix with c_ii=0, c_ij=1 for i!=j, and with a last column for an abstention decision with cost alpha, ")
+print("using calibrated (cal) and misscalibrated (mc1) log posteriors computed with the data priors\n")
+print("        |               mc1 scores                 |            cal")
+print("Alpha   |   MAP    |  EC_Bayes  NEC_Bayes   %Abs   |  EC_Bayes   NEC_Bayes   %Abs")
 
 
 for alpha in [0.01, 0.1, 0.2, 0.4, 0.6, 1.0]:
@@ -169,7 +169,7 @@ for alpha in [0.01, 0.1, 0.2, 0.4, 0.6, 1.0]:
     if latex_tables:
       print("%6.3f  & %6.3f & %6.3f &  %6.1f  & %6.3f  &   %6.3f  & %6.1f \\\\"%(alpha, ec_bayes_nonorm, ec_bayes, perc_abs, ec_bayes_after_cal_nonorm, ec_bayes_after_cal, perc_abs_after_cal))
     else:
-      print("%6.3f  |  %6.3f  |   %6.3f      %6.3f       %6.1f      |   %6.3f    %6.3f         %6.1f"%(alpha, ec_map, ec_bayes_nonorm, ec_bayes, perc_abs, ec_bayes_after_cal_nonorm, ec_bayes_after_cal, perc_abs_after_cal))
+      print("%6.3f  |  %6.3f  |   %6.3f    %6.3f   %6.1f   |   %6.3f    %6.3f    %6.1f"%(alpha, ec_map, ec_bayes_nonorm, ec_bayes, perc_abs, ec_bayes_after_cal_nonorm, ec_bayes_after_cal, perc_abs_after_cal))
       
 
 print("""\nNote that
@@ -182,7 +182,7 @@ print("""\nNote that
   by sweeping a threshold as for the square cost function above because there are three possible decisions.\n""")
 
 #########################################################################################################
-# Finally, analyze the issue of mismatched priors
+# Finally, analyze the issue of mismatched priors and calibration with various metrics
 
 if has_psr is False:
   print("*** Calibration analysis skipped since the psr package is not available")
@@ -198,7 +198,7 @@ metric_dict = {'cost_01': cost_01, 'cost_01_abs=0.1': cost_ab1,
              'cross-entropy': LogLoss, 'brier-score': Brier}
 
 print("*********************************************************************************************************************************")
-print("PSRs for different scores computed using raw and calibrated likelihoods (see script header for details):\n")
+print("PSRs for calibrated and misscalibrated scores (see script header for details):\n")
 
 print_header(metric_dict, score_dict)
 
@@ -223,16 +223,15 @@ for score_name in np.sort(list(score_dict['mc1'].keys())):
 
 
 print("""\nNote that:
-* The difference between the raw and cal column for each cost in the logpost_datap row shows the effect of miscalibration 
-  in the likelihoods used to compute the log-posteriors.
-* The difference between the logpost_datap and logpost_mismp results in the same column indicate the effect of using 
-  mismatched priors when computing the log-posteriors.
-* The last two rows show the effect of calibration using an affine calibration transformation. 
+* The difference between the mc1 or mac2 columns and the and cal column for each metric shows the effect of miscalibration.
+* The difference between the Datap and Mismp results in the same column show the effect of using mismatched priors when 
+  computing the log-posteriors.
+* The affc and tempc two rows show the effect of calibration using an affine or temp-scale calibration transformation. 
 * Note that the columns called cal correspond to perfectly calibrated likelihoods obtained from the distributions used
   for simulation. Hence, they should always be no worse than the scores calibrated with the affine model.\n""")
 
 print("*********************************************************************************************************************************")
-print("Calibration loss for different scores computed using raw and calibrated likelihoods (see script header for details):\n")
+print("Calibration loss calibrated and misscalibrated scores (see script header for details):\n")
 
 metric_dict = {'Cal-loss-cross-entropy': CalLossLogLoss, 'Cal-loss-brier-score': CalLossBrier, 'ECE': ECE}
 
@@ -250,14 +249,20 @@ for score_name in np.sort(list(score_dict['mc1'].keys())):
 
           scores = score_dict[rc][score_name]
           if metric_name == "ECE":
-            metric_value = metric(torch.tensor(scores), torch.tensor(targets))
+            nbins = 15
+            metric_value = metric(torch.tensor(scores), torch.tensor(targets), M=nbins)
+            plot_reliability_diagram(torch.tensor(scores), torch.tensor(targets), "%s/reliability_diagram_%s_%s_C=%d.pdf"%(outdir,rc,score_name,num_targets), nbins=nbins)
+
           else:
             score_name_before_cal = re.sub("-...cal","", score_name)
             cal_scores = score_dict[rc]["%s-affcal"%(score_name_before_cal)]
             metric_value = metric(torch.tensor(scores), torch.tensor(cal_scores), torch.tensor(targets))
 
-          print("%s %6.2f  "%(sep1,metric_value), end='')
+          print("%s %6.f  "%(sep1,metric_value), end='')
         print("%s"%sep2, end='')
     print('%s'%sep3)
 
+print("""\nNote that:
+* The calibration loss computed with cross-entropy and with Brier score are very similar for every system.
+* The ECE, on the other hand, vastly underestimated the calibration problem in some cases.\n""")
 
