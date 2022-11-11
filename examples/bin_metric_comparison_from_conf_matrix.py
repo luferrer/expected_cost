@@ -1,4 +1,4 @@
-# Script used to generate some of the results in 
+# Script used to generate some of the results (Figure 2, Tables 1 and 2) in 
 # "Analysis and Comparison of Classification Metrics", arXiv:2209.05355
 
 import numpy as np
@@ -75,12 +75,12 @@ for N1 in [100, 500]:
     ax1.plot([1,1],[-1,1],'k:',linewidth=2)
 
     ax2.set_xlabel(r'$\mathrm{NEC}_{\beta^2=1}$')
-    ax2.set_ylabel(r'$\mathrm{FS}_{\beta=1}$')
+    ax2.set_ylabel(r'$\mathrm{F}_{\beta=1}$')
     ax2.set_xlim(0,2)
     ax2.plot([1,1],[0,1],'k:',linewidth=2)
 
     ax3.set_xlabel(r'$\mathrm{NEC}_{\beta^2=2}$')
-    ax3.set_ylabel(r'$\mathrm{FS}_{\beta=1}$')
+    ax3.set_ylabel(r'$\mathrm{F}_{\beta=1}$')
     ax3.set_xlim(0,2)
     ax3.plot([1,1],[0,1],'k:',linewidth=2)
 

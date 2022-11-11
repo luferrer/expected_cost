@@ -63,7 +63,7 @@ priors_unif = np.array([0.5, 0.5])
 costs_01 = ec.cost_matrix([[0, 1], [1, 0]])
 costs_0b = ec.cost_matrix([[0, 1], [2, 0]])
 
-colors = {'EC1': 'b', 'EC2': 'r', 'FS': 'g'} #, 'MCC': 'k'}
+colors = {'EC1': 'b', 'EC2': 'r', 'EC3': 'g', 'FS': 'k'} #, 'MCC': 'k'}
 metrics = colors.keys()
 
 for score_name, scores in score_dict.items():
@@ -86,7 +86,9 @@ for score_name, scores in score_dict.items():
         R = utils.compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1)
 
         metric_dict['EC1'].append(ec.average_cost_from_confusion_matrix(R, priors_unif, costs_01, adjusted=True))
-        metric_dict['EC2'].append(ec.average_cost_from_confusion_matrix(R, priors_data, costs_0b, adjusted=True))
+        metric_dict['EC2'].append(ec.average_cost_from_confusion_matrix(R, priors_data, costs_01, adjusted=True))
+        metric_dict['EC3'].append(ec.average_cost_from_confusion_matrix(R, priors_data, costs_0b, adjusted=True))
+
         metric_dict['FS'].append(utils.Fscore(K10, K01, N0, N1))
 
     for metric_name, metric_list in metric_dict.items():
@@ -94,14 +96,17 @@ for score_name, scores in score_dict.items():
 
     plt.figure(figsize=(4,3.5))
     plt.plot(thrs, metric_dict['EC1'], label=r'$\mathrm{NEC}_u$', color=colors['EC1'])
-    plt.plot(thrs, metric_dict['EC2'], label=r'$\mathrm{NEC}_{\beta^2=2}$', color=colors['EC2'])
+    plt.plot(thrs, metric_dict['EC2'], label=r'$\mathrm{NEC}_{\beta^2=1}$', color=colors['EC2'])
+    plt.plot(thrs, metric_dict['EC3'], label=r'$\mathrm{NEC}_{\beta^2=2}$', color=colors['EC3'])
     plt.plot(thrs, 1-metric_dict['FS'], label=r'$1-\mathrm{FS}_{\beta=1}$', color=colors['FS'])
 
     thr_dict = dict()
     thr_dict['bayes_thr_for_EC1'] = utils.bayes_thr_for_llrs(priors_unif, costs_01)
+    thr_dict['bayes_thr_for_EC2'] = utils.bayes_thr_for_llrs(priors_data, costs_01)
+    thr_dict['bayes_thr_for_EC3'] = utils.bayes_thr_for_llrs(priors_data, costs_0b)
     thr_dict['best_thr_for_EC1']  = thrs[np.nanargmin(metric_dict['EC1'])]
-    thr_dict['bayes_thr_for_EC2'] = utils.bayes_thr_for_llrs(priors_data, costs_0b)
     thr_dict['best_thr_for_EC2']  = thrs[np.nanargmin(metric_dict['EC2'])]
+    thr_dict['best_thr_for_EC3']  = thrs[np.nanargmin(metric_dict['EC3'])]
     thr_dict['best_thr_for_FS']   = thrs[np.nanargmin(1-metric_dict['FS'])]
 
     ylim = plt.ylim()

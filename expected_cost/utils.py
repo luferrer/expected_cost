@@ -13,14 +13,8 @@ def plot_hists(targets, scores, outfile):
         ax = axs[classi]
         c, hs = make_hist(targets, scores, classi=classi)
         for j, h in enumerate(hs):
-            if classi == 0:
-               ax.plot(c, h, label="samples of class %d"%j)
-            else:
-               ax.plot(c, h)
-          #m = np.mean(scores[targets==j,classi])
-          #ax.plot([m,m],ax.get_ylim())
-        if classi == 0:
-            ax.legend()
+            ax.plot(c, h, label="samples of class %d"%j)
+        ax.legend(bbox_to_anchor=(1, 1))
         ax.set_title("Scores for class %d"%classi)
 
     plt.tight_layout()

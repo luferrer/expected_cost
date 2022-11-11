@@ -1,16 +1,11 @@
-
-The following scripts create the plots and tables needed for the paper
-"Analysis and Comparison of Classification Metrics", arXiv:2209.05355
-
-
-PYTHONPATH=../ python bin_metric_comparison_from_conf_matrix.py
-PYTHONPATH=../ python bin_metric_comparison_from_scores.py
-PYTHONPATH=../ python ec_and_calibration_analysis.py
+The notebooks in this directory create the plots and tables needed for
+the paper "Analysis and Comparison of Classification Metrics",
+arXiv:2209.05355
 
 Note that, unlike in the paper where class indices go from 1 to C, in
 this code the class indices go from 0 to C-1 since python has 0-based
 indexing.
 
-The data used as input to these scripts can be changed to your own data. To do
-this, you can add a new option in the  methods in data.py. You can follow the
-example corresponding to  cifar10.
+The data used as input to these notebooks can be changed to your own
+data. To do this, you can add a new option in the methods in
+data.py. You can follow the example corresponding to cifar10.
