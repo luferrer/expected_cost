@@ -24,7 +24,7 @@ The code provides methods for computing the EC when decisions are given by:
 
 The scripts in the examples directory can be used with any dataset of scores and targets. See the examples/data.py file for examples on how to load your own data in the format required by the examples.
 
-The repository provides calibration functionality using a separate repository called psr-calibration. The psr-calibration repository (which requires pytorch) is not needed for normal functioning of the code. A wrapper of the psr-calibration main calibration method can be found in the expected_cost/calibration.py file. An example on how to use this method can be found in the examples/data.py file, where functionality for loading and calibrating a cifar10 dataset is included as an example. 
+The repository provides calibration functionality using a separate repository called psr-calibration. The psr-calibration repository (which requires pytorch) is not needed for normal functioning of the code. A wrapper of the psr-calibration main calibration method can be found in the expected_cost/calibration.py file. An example on how to use this method can be found in the notebooks/data.py file. 
 
 ## How to install
 
