@@ -38,7 +38,7 @@ The repository provides calibration functionality using a separate repository ca
    
 3. (Optional) If you want to enable calibration capabilities follow the installation instructions in:
 
-   ```https://github.com/SergioAlvarezB/psr-calibration```
+   [```https://github.com/SergioAlvarezB/psr-calibration```](https://github.com/SergioAlvarezB/psr-calibration)
   
    and link the psrcal directory from that repository in the expected_cost directory.
   
