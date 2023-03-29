@@ -407,7 +407,7 @@ class cost_matrix:
         return self.costs
 
     @staticmethod
-    def from_utilities(utilites):
+    def from_utilities(utilities):
         """ Obtain a cost matrix from a utility matrix where better
         decisions are given higher values. """
         return cost_matrix(-utilities).normalize()
