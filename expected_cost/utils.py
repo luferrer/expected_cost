@@ -1,8 +1,7 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats
 from scipy.special import expit, logit, logsumexp 
-import os
 
 
 def plot_hists(targets, scores, outfile):
@@ -68,7 +67,6 @@ def make_hist(targets, scores, classi=0, nbins=100):
     return centers, hists
     
 
-
 def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
     """ Compute the error rates given the number of missclassifications, K01 and K10, 
     and the total number of samples for each class, N0, N1.
@@ -79,8 +77,8 @@ def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
     """
 
     cm = np.array([[N0-K01, K01],[K10, N1-K10]])
-    R = cm/cm.sum(axis=1, keepdims=True)
-    return R
+    # Return R matrix
+    return cm/cm.sum(axis=1, keepdims=True)
     
 
 def bayes_thr_for_llrs(priors, costs):
@@ -159,27 +157,23 @@ def mkdir_p(dir):
         os.makedirs(dir)
 
 
-#########################################################################################
-# Definition of a few standard metrics computed from the confusion matrix
-
-def Fscore(K10, K01, N0, N1):
-    K11 = N1-K10
-    Recall    = K11/N1
-    Precision = K11/(K11+K01) if K11+K01>0 else 0
-    Fscore    = 2 * Precision*Recall/(Recall+Precision) if K11>0 else 0
-    return Fscore
-    
-
-def MCCoeff(K10, K01, N0, N1):
-    K11 = N1-K10
-    K00 = N0-K01
-    num = K00 * K11 - K01 * K10
-    den = np.sqrt(N0 * N1 * (K01+K11) * (K10 + K00))
-    return num/den if den>0 else (np.inf if num>0 else -np.inf)
+def get_binary_data_priors(targets):
+    N0 = sum(targets==0)
+    N1 = sum(targets==1)
+    K = N0 + N1
+    P0 = N0/K
+    P1 = N1/K
+    return P0, P1
 
 
-def LRplus(K10, K01, N0, N1):
-    R10 = K10 / N1
-    R01 = K01 / N0
-    return (1-R10)/R01 if R01>0 else np.inf
-
+def get_counts_from_binary_data(targets, decisions):
+    '''
+    Requires already computed hard decisions from a threshold NOT raw scores
+    '''
+    N0 = sum(targets==0)
+    N1 = sum(targets==1)
+    K00 = sum(np.logical_and(targets==0, decisions==0))
+    K01 = sum(np.logical_and(targets==0, decisions==1))
+    K11 = sum(np.logical_and(targets==1, decisions==1))
+    K10 = sum(np.logical_and(targets==1, decisions==0))
+    return N0, N1, K00, K11, K01, K10
