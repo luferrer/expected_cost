@@ -158,6 +158,9 @@ def mkdir_p(dir):
 
 
 def get_binary_data_priors(targets):
+    '''
+    Returns P0 the priors for class 0 and P1 the priors for class 1
+    '''
     N0 = sum(targets==0)
     N1 = sum(targets==1)
     K = N0 + N1
