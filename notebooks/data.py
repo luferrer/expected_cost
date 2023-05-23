@@ -6,10 +6,12 @@ from scipy.stats import norm, multivariate_normal
 from scipy.special import logsumexp 
 from expected_cost import utils
 from IPython import embed
+import os
 
 try:
     import torch    
-    from expected_cost.calibration import affine_calibration_with_crossval
+    from expected_cost.calibration import calibration_with_crossval, calibration_train_on_test
+    from psrcal.calibration import HistogramBinningCal
     has_psr = True
     #print("Found psr calibration library = %s"%has_psr)
 except:
@@ -40,8 +42,10 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
 
         # Load pre-generated scores for cifar10 data
         print("\n**** Loading in CIFAR10 data ****\n")
-        preacts = np.load("data/resnet-50_cifar10/predictions.npy")
-        targets = np.load("data/resnet-50_cifar10/targets.npy")
+        dir = os.path.dirname(__file__)+"/data/resnet-50_cifar10/"
+        print(dir)
+        preacts = np.load(dir+"predictions.npy")
+        targets = np.load(dir+"targets.npy")
 
         # Compute log-softmax to get log posteriors. 
         raw_logpost = preacts - logsumexp(preacts, axis=-1, keepdims=True)
@@ -50,10 +54,10 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
             # Calibrate the scores with cross-validation using an affine transform
             # trained with log-loss (cross-entropy)
             print("Calibrating data")
-            cal_logpost = affine_calibration_with_crossval(raw_logpost, targets)
+            cal_logpost = calibration_with_crossval(raw_logpost, targets)
         else:
             # If calibration code is not available, load a pre-generated file
-            cal_logpost = np.load("data/resnet-50_cifar10/predictions_cal_10classes.npy")
+            cal_logpost = np.load(dir+"predictions_cal_10classes.npy")
 
         # For this dataset, the posteriors coincide with the scaled likelihoods
         # because the priors are uniform. If that was not the case, we would use
@@ -97,8 +101,8 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
         cal_llks = get_llks_for_gaussian_model(feats, means, stds)
 
         # Now generate misscalibrated llks with the provided shift and scale 
-        raw_llks = score_scale * cal_llks + score_shift
-    
+        raw_llks = score_scale * cal_llks + score_shift        
+
     else:
         raise Exception("Unrecognized dataset name: %s"%dataset)
 
@@ -140,4 +144,95 @@ def get_llks_for_gaussian_model(data, means, stds):
         llks.append(np.atleast_2d(np.log(multivariate_normal(mean, std).pdf(data))))
 
     return np.concatenate(llks).T
+
+
+def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, sim_name='gaussian_sim'):
+
+    """
+    Generate a bunch of different posteriors for a C class problem (C can be changed to whatever you like). First, generate likelihoods with Gaussian class distributions and then compute:
+
+    Datap: log-posteriors obtained from the llks applying the true data priors
+
+    Mismp: log-posteriors obtained from the llks applying the mismatched data priors to simulate a system that was trained with the wrong priors
+
+    Two llk versions are used (cal, mc1): miscalibrated and calibrated ones, resulting in two versions of each of the above posteriors. Finally, another miscalibrated version of the posteriors (mc2) is created by scaling the log-posteriors directly.
+
+    For each of the 6 posteriors (Datap/Mismp-cal/mc1/mc2), two calibrated versions, using an affine transformation and temp scaling are also created.
+    """ 
+
+
+    C = num_classes
+
+    # Prior vector with given above and all other priors being equal to (1-p0)/(C-1)
+    data_priors = np.array([P0] + [(1 - P0) / (C - 1)] * (C - 1))
+
+    # Mismatched priors where the p0 is used for the last class instead of the first
+    mism_priors = np.array([(1 - P0m) / (C - 1)] * (C - 1) + [P0m])
+
+    score_dict = {'cal': {}, 'mc1': {}, 'mc2': {}}
+
+    # Parameters used for miscalibrating the true likelihoods to create the raw ones
+    # The shift is set to 0 for all classes except the first one, and the scale is
+    # set to 0.5
+    shift_for_raw_llks = np.zeros(C)
+    shift_for_raw_llks[0] = 0.5
+    score_scale1 = 0.5
+    sim_params = {
+        'feat_std': feat_std,
+        'score_scale': score_scale1,
+        'score_shift': shift_for_raw_llks
+        }
+
+    # Generate the calibrated and the miscalibrated llks
+    targets, score_dict['mc1']['llks'], score_dict['cal']['llks'] = get_llks_for_multi_classif_task(sim_name,
+                                                                                                    priors=data_priors,
+                                                                                                    sim_params=sim_params,
+                                                                                                    K=K)
+
+    # Scale for miscalibrating the posteriors
+    score_scale2 = 5
+
+    for rc in ['cal', 'mc1', 'mc2']:
+
+
+        if rc != 'mc2':
+            # Take the cal or mc1 llks and compute two sets of posteriors with 
+            # different priors
+            llks = score_dict[rc]['llks']
+            score_dict[rc]['Datap'] = utils.llks_to_logpost(llks, data_priors)
+            score_dict[rc]['Mismp'] = utils.llks_to_logpost(llks, mism_priors)
+        else:
+            # For mc2, miscalibrate the cal posteriors by scaling them and renormalizing
+            for pr in ['Datap', 'Mismp']:
+                score_dict[rc][pr] = score_scale2 * score_dict['cal'][pr]
+                score_dict[rc][pr] -= logsumexp(score_dict[rc][pr], axis=1, keepdims=True)
+
+        for pr in ['Datap', 'Mismp']:
+            # Finally, create two sets of calibrated outputs for each set of posteriors.
+            # Note that the output of this calibration method are posteriors for the priors
+            # in the provided data. If you want to train calibration with a different set
+            # of priors you can provide those priors through the "priors" argument.
+            # If you want to get log-scaled-likelihood you just need to subtract log(priors)
+            # from this method's output scores, where the priors are either those in the data
+            # or the externally provided priors. 
+            score_dict[rc][f'{pr}-affcal']   = calibration_with_crossval(score_dict[rc][pr], targets)
+            score_dict[rc][f'{pr}-temcal']   = calibration_with_crossval(score_dict[rc][pr], targets, use_bias=False)
+
+            # Then repeat those three calibration procedures but training on test
+            score_dict[rc][f'{pr}-affcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets)
+            score_dict[rc][f'{pr}-temcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, use_bias=False)
+
+            # For the binary case, add one calibrated version using histogram binning 
+            if C == 2:
+                score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
+                score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
+
+
+        # Plot the resulting distributions (for llks and posteriors)
+        # for score_name, scores in score_dict[rc].items():
+        #    utils.plot_hists(targets, scores, f"{outdir}/dists_{rc}_{score_name}_C={num_targets}.pdf")
+
+
+    return score_dict, targets
+
 
