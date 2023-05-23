@@ -157,8 +157,6 @@ def mkdir_p(dir):
         os.makedirs(dir)
 
 
-<<<<<<< HEAD
-
 def create_bootstrap_set(samples, targets, conditions=None, stratify=None):
 
     assert samples.shape[0] == targets.shape[0]
