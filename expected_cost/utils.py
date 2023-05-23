@@ -1,10 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats
 from scipy.special import expit, logit, logsumexp 
 import os
 from sklearn.utils import resample
-
 
 def plot_hists(targets, scores, outfile):
 
@@ -69,7 +67,6 @@ def make_hist(targets, scores, classi=0, nbins=100):
     return centers, hists
     
 
-
 def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
     """ Compute the error rates given the number of missclassifications, K01 and K10, 
     and the total number of samples for each class, N0, N1.
@@ -80,8 +77,8 @@ def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
     """
 
     cm = np.array([[N0-K01, K01],[K10, N1-K10]])
-    R = cm/cm.sum(axis=1, keepdims=True)
-    return R
+    # Return R matrix
+    return cm/cm.sum(axis=1, keepdims=True)
     
 
 def bayes_thr_for_llrs(priors, costs):
@@ -160,6 +157,7 @@ def mkdir_p(dir):
         os.makedirs(dir)
 
 
+<<<<<<< HEAD
 
 def create_bootstrap_set(samples, targets, conditions=None, stratify=None):
 
@@ -174,6 +172,19 @@ def create_bootstrap_set(samples, targets, conditions=None, stratify=None):
         sel_indices = resample(indices, replace=True, n_samples=len(samples), stratify=stratify)
 
     return samples[sel_indices], targets[sel_indices]
+
+
+
+def get_binary_data_priors(targets):
+    '''
+    Returns P0 the priors for class 0 and P1 the priors for class 1
+    '''
+    N0 = sum(targets==0)
+    N1 = sum(targets==1)
+    K = N0 + N1
+    P0 = N0/K
+    P1 = N1/K
+    return P0, P1
 
 
 #########################################################################################
@@ -199,4 +210,5 @@ def LRplus(K10, K01, N0, N1):
     R10 = K10 / N1
     R01 = K01 / N0
     return (1-R10)/R01 if R01>0 else np.inf
+
 

@@ -8,6 +8,8 @@ import numpy as np
 from scipy.sparse import coo_matrix
 from expected_cost import utils
 
+
+
 def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None, adjusted=False):
     """Compute the average cost.
 
@@ -121,7 +123,7 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     priors = priors[:,np.newaxis]
 
     if costs is None:
-        costs = cost_matrix.zero_one_costs(len(priors))
+        costs = CostMatrix.zero_one_costs(len(priors))
     cmatrix = costs.get_matrix()
 
     # The confusion matrix, when normalized by the true class (the target)
@@ -129,11 +131,8 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     R = generalized_confusion_matrix(targets, decisions, sample_weight=sample_weight, normalize="true",
         num_targets = cmatrix.shape[0], num_decisions = cmatrix.shape[1])
 
-
-    ave_cost = average_cost_from_confusion_matrix(R, priors, costs, adjusted)
-    
-    return ave_cost
-
+    # Return average cost  
+    return average_cost_from_confusion_matrix(R, priors, costs, adjusted)
 
 def average_cost_from_confusion_matrix(R, priors, costs, adjusted=False):
     """Compute the average cost as in the average_cost method but taking
@@ -186,7 +185,7 @@ def average_cost_from_confusion_matrix(R, priors, costs, adjusted=False):
 
 
 
-def generalized_confusion_matrix(targets, decisions, sample_weight=None, normalize=None, num_targets=None, num_decisions=None):     
+def generalized_confusion_matrix(targets, decisions, sample_weight=None, normalize=None, num_targets=None, num_decisions=None):
     """ Get the confusion matrix between targets and decisions. This is a
     generalization of the usual confusion matrix where the set of decisions are
     restricted to be the same as the set of targets. The element ij of the
@@ -230,18 +229,14 @@ def generalized_confusion_matrix(targets, decisions, sample_weight=None, normali
 
     lab_type, targets, decisions = _check_targets(targets, decisions)
     if lab_type not in ("binary", "multiclass"):
-        raise ValueError("%s is not supported" % lab_type)
+        raise ValueError(f"{lab_type} is not supported")
 
     if sample_weight is None:
         sample_weight = np.ones(targets.shape[0], dtype=np.int64)
     else:
         sample_weight = np.asarray(sample_weight)
 
-    if sample_weight.dtype.kind in {"i", "u", "b"}:
-        dtype = np.int64
-    else:
-        dtype = np.float64
-
+    dtype = np.int64 if sample_weight.dtype.kind in {"i", "u", "b"} else np.float64
     check_consistent_length(targets, decisions, sample_weight)
 
     if num_targets is None:
@@ -261,9 +256,6 @@ def generalized_confusion_matrix(targets, decisions, sample_weight=None, normali
         cm = np.nan_to_num(cm)
 
     return cm
-
-
-
 
 def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', silent=False):
     """ Make Bayes decisions for the given costs and scores. Bayes decision 
@@ -346,11 +338,12 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
     return (posteriors @ cmatrix).argmin(axis=-1), posteriors
 
 
+
 def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors'):
     """ Convert scores into posteriors depending on their type. See method
     bayes_decisions for more details."""
 
-    if score_type == 'posteriors' or score_type == 'log_posteriors':
+    if score_type in ['posteriors', 'log_posteriors']:
         # In this case, priors are ignored
         posteriors = np.exp(scores) if score_type == "log_posteriors" else scores
 
@@ -358,26 +351,27 @@ def get_posteriors_from_scores(scores, priors=None, score_type='log_posteriors')
         # If the inputs are not posteriors, turn them into posteriors
         # using the provided priors.
         if priors is None:
-            raise ValueError("Prior needs to be provided when using score_type %s"%score_type)
+            raise ValueError(
+                f"Prior needs to be provided when using score_type {score_type}"
+            )
 
         priors = np.array(priors)/np.sum(priors)
 
         if score_type == "log_likelihoods":
             posteriors = np.exp(utils.llks_to_logpost(scores, priors))
-        
+
         elif score_type == "log_likelihood_ratios":
             posteriors = np.exp(utils.llrs_to_logpost(scores, priors))
-        
+
         else:
-            raise ValueError("Score type %s not implemented"%score_type)
+            raise ValueError(f"Score type {score_type} not implemented")
 
     # Make sure the posteriors sum to 1
     posteriors /= np.sum(posteriors, axis=1, keepdims=True)
 
     return posteriors
 
-
-class cost_matrix:
+class CostMatrix:
     """ 
     Utility class to define and work with cost matrices. The cost matrix has one
     row per true class and  one column per decision. Entry (i,j) in the matrix
@@ -410,7 +404,7 @@ class cost_matrix:
     def from_utilities(utilities):
         """ Obtain a cost matrix from a utility matrix where better
         decisions are given higher values. """
-        return cost_matrix(-utilities).normalize()
+        return CostMatrix(-utilities).normalize()
 
     @staticmethod
     def zero_one_costs(C, abstention_cost=None):
@@ -427,7 +421,7 @@ class cost_matrix:
         if abstention_cost is not None:
             c = np.c_[c, abstention_cost*np.ones(c.shape[0])]
         
-        return cost_matrix(c)
+        return CostMatrix(c)
 
 
 def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, sample_weight=None, 
@@ -494,8 +488,6 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
     cost = average_cost(targets, decisions, costs, priors, sample_weight, adjusted)
 
     return cost, decisions
-
-
 
 def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None, sample_weight=None, 
     adjusted=False, score_type='log_posteriors'):
@@ -572,6 +564,3 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
         norm_value = 1.0
 
     return np.min(ave_cost)/norm_value
-
-
-

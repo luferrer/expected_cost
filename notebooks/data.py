@@ -29,7 +29,7 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
       the priors and K need to be set to determine the class priors and the 
       total number of samples required.
       
-    The cifar10 example can be used as template add a loader for your own set 
+    The cifar10 example can be used as template to add a loader for your own set 
     of scores. If your scores are posteriors instead of llks, you can either: 
     * ignore this fact and have this method output the posteriors (in this case,  
       remember to call the expected cost methods with score_type="log-posteriors")
@@ -71,10 +71,10 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
         if sim_params is None:
             sim_params = {}
 
+
         feat_std    = sim_params.get('feat_std', 1.0)
         score_shift = sim_params.get('score_shift', 0)
         score_scale = sim_params.get('score_scale', 1.0)
-        
         counts = np.array(np.array(priors)*K, dtype=int)
         C = len(counts)
 
@@ -83,7 +83,7 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
         # evenly distributed means.
         print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%C)
         np.random.seed(0)
-        
+
         # Put the mean at 0, 1, ..., C-1. 
         means = np.arange(0, C)
 
@@ -101,10 +101,10 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
         cal_llks = get_llks_for_gaussian_model(feats, means, stds)
 
         # Now generate misscalibrated llks with the provided shift and scale 
-        raw_llks = score_scale * cal_llks + score_shift        
+        raw_llks = score_scale * cal_llks + score_shift
 
     else:
-        raise Exception("Unrecognized dataset name: %s"%dataset)
+        raise Exception(f"Unrecognized dataset name: {dataset}")
 
 
     return targets, raw_llks, cal_llks
