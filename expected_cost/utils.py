@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import scipy.stats
 from scipy.special import expit, logit, logsumexp 
 import os
+from sklearn.utils import resample
 
 
 def plot_hists(targets, scores, outfile):
@@ -159,14 +160,30 @@ def mkdir_p(dir):
         os.makedirs(dir)
 
 
+
+def create_bootstrap_set(samples, targets, conditions=None, stratify=None):
+
+    assert samples.shape[0] == targets.shape[0]
+    indices = np.arange(targets.shape[0])
+
+    if conditions is not None:
+        assert len(samples) == len(conditions)
+        bt_conditions = resample(np.unique(conditions), replace=True, n_samples=len(conditions))
+        sel_indices = np.concatenate([indices[np.where(conditions == s)[0]] for s in bt_conditions])
+    else:
+        sel_indices = resample(indices, replace=True, n_samples=len(samples), stratify=stratify)
+
+    return samples[sel_indices], targets[sel_indices]
+
+
 #########################################################################################
 # Definition of a few standard metrics computed from the confusion matrix
 
-def Fscore(K10, K01, N0, N1):
+def Fscore(K10, K01, N0, N1, betasq=1):
     K11 = N1-K10
     Recall    = K11/N1
     Precision = K11/(K11+K01) if K11+K01>0 else 0
-    Fscore    = 2 * Precision*Recall/(Recall+Precision) if K11>0 else 0
+    Fscore    = (betasq+1) * Precision*Recall/(betasq*Recall+Precision) if K11>0 else 0
     return Fscore
     
 
