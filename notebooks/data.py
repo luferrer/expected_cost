@@ -9,11 +9,11 @@ from IPython import embed
 import os
 
 try:
-    import torch    
+    import torch
     from expected_cost.calibration import calibration_with_crossval, calibration_train_on_test
     from psrcal.calibration import HistogramBinningCal
     has_psr = True
-    #print("Found psr calibration library = %s"%has_psr)
+#    print("Found psr calibration library = %s"%has_psr)
 except:
     has_psr = False
 
@@ -146,18 +146,24 @@ def get_llks_for_gaussian_model(data, means, stds):
     return np.concatenate(llks).T
 
 
-def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, sim_name='gaussian_sim'):
+def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, score_scale_mc2=5, sim_name='gaussian_sim', calibrate=False):
 
     """
-    Generate a bunch of different posteriors for a C class problem (C can be changed to whatever you like). First, generate likelihoods with Gaussian class distributions and then compute:
+    Generate a bunch of different posteriors for a C class problem (C can be changed to whatever you
+    like). First, generate likelihoods with Gaussian class distributions and then compute:
 
     Datap: log-posteriors obtained from the llks applying the true data priors
 
-    Mismp: log-posteriors obtained from the llks applying the mismatched data priors to simulate a system that was trained with the wrong priors
+    Mismp: log-posteriors obtained from the llks applying the mismatched data priors to simulate a
+    system that was trained with the wrong priors
 
-    Two llk versions are used (cal, mc1): miscalibrated and calibrated ones, resulting in two versions of each of the above posteriors. Finally, another miscalibrated version of the posteriors (mc2) is created by scaling the log-posteriors directly.
+    Two llk versions are used (cal, mc1): miscalibrated and calibrated ones, resulting in two
+    versions of each of the above posteriors. Finally, another miscalibrated version of the
+    posteriors (mc2) is created by scaling the log-posteriors directly.
 
-    For each of the 6 posteriors (Datap/Mismp-cal/mc1/mc2), two calibrated versions, using an affine transformation and temp scaling are also created.
+    If calibrate is True, for each of the 6 posteriors (Datap/Mismp-cal/mc1/mc2), calibrated
+    versions, using an affine transformation, temp scaling, and histogram binning are also created.
+    In each case, we train them either with cross-validation or by training on the test data.
     """ 
 
 
@@ -188,12 +194,8 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
                                                                                                     priors=data_priors,
                                                                                                     sim_params=sim_params,
                                                                                                     K=K)
-
-    # Scale for miscalibrating the posteriors
-    score_scale2 = 5
-
+    
     for rc in ['cal', 'mc1', 'mc2']:
-
 
         if rc != 'mc2':
             # Take the cal or mc1 llks and compute two sets of posteriors with 
@@ -204,33 +206,30 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
         else:
             # For mc2, miscalibrate the cal posteriors by scaling them and renormalizing
             for pr in ['Datap', 'Mismp']:
-                score_dict[rc][pr] = score_scale2 * score_dict['cal'][pr]
+                score_dict[rc][pr] = score_scale_mc2 * score_dict['cal'][pr]
                 score_dict[rc][pr] -= logsumexp(score_dict[rc][pr], axis=1, keepdims=True)
 
-        for pr in ['Datap', 'Mismp']:
-            # Finally, create two sets of calibrated outputs for each set of posteriors.
-            # Note that the output of this calibration method are posteriors for the priors
-            # in the provided data. If you want to train calibration with a different set
-            # of priors you can provide those priors through the "priors" argument.
-            # If you want to get log-scaled-likelihood you just need to subtract log(priors)
-            # from this method's output scores, where the priors are either those in the data
-            # or the externally provided priors. 
-            score_dict[rc][f'{pr}-affcal']   = calibration_with_crossval(score_dict[rc][pr], targets)
-            score_dict[rc][f'{pr}-temcal']   = calibration_with_crossval(score_dict[rc][pr], targets, use_bias=False)
 
-            # Then repeat those three calibration procedures but training on test
-            score_dict[rc][f'{pr}-affcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets)
-            score_dict[rc][f'{pr}-temcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, use_bias=False)
+        if calibrate:
+            for pr in ['Datap', 'Mismp']:
+                # Finally, create two sets of calibrated outputs for each set of posteriors.
+                # Note that the output of this calibration method are posteriors for the priors
+                # in the provided data. If you want to train calibration with a different set
+                # of priors you can provide those priors through the "priors" argument.
+                # If you want to get log-scaled-likelihood you just need to subtract log(priors)
+                # from this method's output scores, where the priors are either those in the data
+                # or the externally provided priors. 
+                score_dict[rc][f'{pr}-affcal']   = calibration_with_crossval(score_dict[rc][pr], targets)
+                score_dict[rc][f'{pr}-temcal']   = calibration_with_crossval(score_dict[rc][pr], targets, use_bias=False)
 
-            # For the binary case, add one calibrated version using histogram binning 
-            if C == 2:
-                score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
-                score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
+                # Then repeat those three calibration procedures but training on test
+                score_dict[rc][f'{pr}-affcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets)
+                score_dict[rc][f'{pr}-temcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, use_bias=False)
 
-
-        # Plot the resulting distributions (for llks and posteriors)
-        # for score_name, scores in score_dict[rc].items():
-        #    utils.plot_hists(targets, scores, f"{outdir}/dists_{rc}_{score_name}_C={num_targets}.pdf")
+                # For the binary case, add one calibrated version using histogram binning 
+                if C == 2:
+                    score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
+                    score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
 
 
     return score_dict, targets
