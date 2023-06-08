@@ -4,21 +4,51 @@ from scipy.special import expit, logit, logsumexp
 import os
 from sklearn.utils import resample
 
-def plot_hists(targets, scores, outfile):
+def plot_hists(targets, scores, outfile=None, nbins=100, group_by='score', style='-', label_prefix='', axs=None):
 
-    num_targets = scores.shape[1]
-    fig, axs = plt.subplots(num_targets, figsize=(4,2*num_targets))
-    for classi in np.arange(num_targets):
-        ax = axs[classi]
-        c, hs = make_hist(targets, scores, classi=classi)
-        for j, h in enumerate(hs):
-            ax.plot(c, h, label="samples of class %d"%j)
+    num_scores = scores.shape[1]
+
+    if group_by == 'score':
+        num_plots = num_scores
+    elif group_by == 'target':
+        num_plots = len(np.unique(targets))
+    elif group_by == 'all':
+        num_plots = 1
+    else:
+        raise Exception("group_by %s not implemented"%group_by)
+
+    if axs is None:
+        _, axs = plt.subplots(num_plots, figsize=(7,2.5*num_plots))
+        axs = np.atleast_1d(axs)
+
+    for classi in np.arange(num_scores):
+        c, hs = make_hist(targets, scores, classi=classi, nbins=nbins)
+        for tclassi, h in hs.items():
+            if group_by == 'score':
+                ax = axs[classi]
+                label = "samples of class %d"%tclassi
+            elif group_by == 'target':
+                ax = axs[tclassi]
+                label = "scores from col %d"%classi
+            else:
+                ax = axs[0]
+                label = "samples of class %d, scores from col %d"%(tclassi, classi)
+            
+            ax.plot(c, h, label=label_prefix+label, linestyle=style)
+
+    for i, ax in enumerate(axs):
         ax.legend(bbox_to_anchor=(1, 1))
-        ax.set_title("Scores for class %d"%classi)
+        if group_by == 'score':
+            ax.set_title("Scores from col %d"%i)
+        elif group_by == 'target':
+            ax.set_title("Samples of class %d"%i)
 
     plt.tight_layout()
-    plt.savefig(outfile)
-    plt.close()
+    if outfile is not None:
+        plt.savefig(outfile)
+        plt.close()
+
+    return axs
 
 
 def make_hist(targets, scores, classi=0, nbins=100):
@@ -58,11 +88,11 @@ def make_hist(targets, scores, classi=0, nbins=100):
     centers = (e[1:]+e[:-1])/2
     
     # Now get the (normalized heights) for the samples from each class
-    hists = []
+    hists = {}
     for c in np.unique(targets):
         idx = targets == c
         hc, _ = np.histogram(scores[idx], e, density=True)
-        hists.append(hc)
+        hists[c]= hc
 
     return centers, hists
     
