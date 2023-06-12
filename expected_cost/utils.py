@@ -6,7 +6,9 @@ from sklearn.utils import resample
 
 def plot_hists(targets, scores, outfile=None, nbins=100, group_by='score', style='-', label_prefix='', axs=None):
 
-    num_scores = scores.shape[1]
+    scores = np.atleast_2d(scores).T
+
+    num_scores = scores.shape[1] 
 
     if group_by == 'score':
         num_plots = num_scores
@@ -194,12 +196,14 @@ def create_bootstrap_set(samples, targets, conditions=None, stratify=None):
 
     if conditions is not None:
         assert len(samples) == len(conditions)
-        bt_conditions = resample(np.unique(conditions), replace=True, n_samples=len(conditions))
+        unique_conditions = np.unique(conditions)
+        bt_conditions = resample(unique_conditions, replace=True, n_samples=len(unique_conditions))
         sel_indices = np.concatenate([indices[np.where(conditions == s)[0]] for s in bt_conditions])
     else:
         sel_indices = resample(indices, replace=True, n_samples=len(samples), stratify=stratify)
+        conditions = np.arange(len(samples))
 
-    return samples[sel_indices], targets[sel_indices]
+    return samples[sel_indices], targets[sel_indices], conditions[sel_indices]
 
 
 
