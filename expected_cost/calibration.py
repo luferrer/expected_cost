@@ -1,9 +1,9 @@
-from psrcal.calibration import calibrate, AffineCalLogLoss
+from psrcal.calibration import AffineCalLogLoss
 from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold, GroupKFold
 import torch
 import numpy as np
 
-def calibration_with_crossval(logpost, targets, use_bias=True, priors=None, calmethod=AffineCalLogLoss, seed=None, 
+def calibration_with_crossval(logpost, targets, calparams={}, calmethod=AffineCalLogLoss, seed=None, 
                               condition_ids=None, stratified=True, nfolds=5):
     
     """ 
@@ -54,7 +54,7 @@ def calibration_with_crossval(logpost, targets, use_bias=True, priors=None, calm
         tstf = torch.as_tensor(logpost[tsti], dtype=torch.float32)
         trnt = torch.as_tensor(targets[trni], dtype=torch.int64)
 
-        calmodel = calmethod(trnf, trnt, bias=use_bias, priors=priors)
+        calmodel = calmethod(trnf, trnt, **calparams)
         calmodel.train()
         tstf_cal = calmodel.calibrate(tstf)
 
@@ -63,7 +63,7 @@ def calibration_with_crossval(logpost, targets, use_bias=True, priors=None, calm
     return logpostcal
 
 
-def calibration_train_on_heldout(logpost_tst, logpost_trn, targets_trn, use_bias=True, priors=None, calmethod=AffineCalLogLoss, return_model=False):
+def calibration_train_on_heldout(logpost_tst, logpost_trn, targets_trn, calmethod=AffineCalLogLoss, calparams={}, return_model=False):
     """ Same as calibration_with_crossval but doing cheating calibration.
     """
 
@@ -71,7 +71,7 @@ def calibration_train_on_heldout(logpost_tst, logpost_trn, targets_trn, use_bias
     tstf = torch.as_tensor(logpost_tst, dtype=torch.float32)
     trnt = torch.as_tensor(targets_trn, dtype=torch.int64)
 
-    calmodel = calmethod(trnf, trnt, bias=use_bias, priors=priors)
+    calmodel = calmethod(trnf, trnt, **calparams)
     calmodel.train()
     tstf_cal = calmodel.calibrate(tstf)
 
@@ -82,7 +82,8 @@ def calibration_train_on_heldout(logpost_tst, logpost_trn, targets_trn, use_bias
     else:
         return logpostcal
 
-def calibration_train_on_test(logpost, targets, use_bias=True, priors=None, calmethod=AffineCalLogLoss, return_model=False):
+def calibration_train_on_test(logpost, targets, calmethod=AffineCalLogLoss, calparams={} ,return_model=False):
 
-    return calibration_train_on_heldout(logpost, logpost, targets, use_bias, priors, calmethod, return_model)
+    return calibration_train_on_heldout(logpost, logpost, targets, calmethod=calmethod, return_model=return_model, 
+                                        calparams=calparams)
 

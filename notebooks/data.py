@@ -220,11 +220,11 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
                 # from this method's output scores, where the priors are either those in the data
                 # or the externally provided priors. 
                 score_dict[rc][f'{pr}-affcal']   = calibration_with_crossval(score_dict[rc][pr], targets)
-                score_dict[rc][f'{pr}-temcal']   = calibration_with_crossval(score_dict[rc][pr], targets, use_bias=False)
+                score_dict[rc][f'{pr}-temcal']   = calibration_with_crossval(score_dict[rc][pr], targets, calparams={'bias':False})
 
                 # Then repeat those three calibration procedures but training on test
                 score_dict[rc][f'{pr}-affcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets)
-                score_dict[rc][f'{pr}-temcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, use_bias=False)
+                score_dict[rc][f'{pr}-temcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calparams={'bias':False})
 
                 # For the binary case, add one calibrated version using histogram binning 
                 if C == 2:
