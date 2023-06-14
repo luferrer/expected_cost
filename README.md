@@ -42,5 +42,5 @@ The repository provides calibration functionality using a separate repository ca
   
    and link the psrcal directory from that repository in the expected_cost directory.
   
-4. Run the example code in the examples dir. See the README in that dir for how to run the scripts.
+4. You can now run any notebook in the notebooks directory.
 
