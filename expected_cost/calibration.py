@@ -2,6 +2,26 @@ from psrcal.calibration import AffineCalLogLoss
 from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold, GroupKFold, KFold
 import torch
 import numpy as np
+from scipy.special import logsumexp 
+
+
+def train_calibrator(logpost_trn, targets_trn, calparams={}, calmethod=AffineCalLogLoss):
+    trnf = torch.as_tensor(logpost_trn, dtype=torch.float32)
+    trnt = torch.as_tensor(targets_trn, dtype=torch.int64)
+    calmodel = calmethod(trnf, trnt, **calparams)
+    calmodel.train()
+    return calmodel
+
+def calibrate_scores(logpost_tst, calmodel):
+    tstf = torch.as_tensor(logpost_tst, dtype=torch.float32)
+    tstf_cal = calmodel.calibrate(tstf)
+    logpostcal = tstf_cal.detach().numpy()
+
+    # Normalize them to make them log posteriors
+    logpostcal -= logsumexp(logpostcal, axis=1, keepdims=True)
+
+    return logpostcal
+
 
 def calibration_with_crossval(logpost, targets, calparams={}, calmethod=AffineCalLogLoss, seed=None, 
                               condition_ids=None, stratified=True, nfolds=5):
@@ -53,15 +73,8 @@ def calibration_with_crossval(logpost, targets, calparams={}, calmethod=AffineCa
 
     for trni, tsti in skf.split(logpost, targets, condition_ids):
 
-        trnf = torch.as_tensor(logpost[trni], dtype=torch.float32)
-        tstf = torch.as_tensor(logpost[tsti], dtype=torch.float32)
-        trnt = torch.as_tensor(targets[trni], dtype=torch.int64)
-
-        calmodel = calmethod(trnf, trnt, **calparams)
-        calmodel.train()
-        tstf_cal = calmodel.calibrate(tstf)
-
-        logpostcal[tsti] = tstf_cal.detach().numpy()
+        calmodel = train_calibrator(logpost[trni], targets[trni], calparams=calparams, calmethod=calmethod)
+        logpostcal[tsti] = calibrate_scores(logpost[tsti], calmodel)
 
     return logpostcal
 
@@ -69,16 +82,8 @@ def calibration_with_crossval(logpost, targets, calparams={}, calmethod=AffineCa
 def calibration_train_on_heldout(logpost_tst, logpost_trn, targets_trn, calmethod=AffineCalLogLoss, calparams={}, return_model=False):
     """ Same as calibration_with_crossval but doing cheating calibration.
     """
-
-    trnf = torch.as_tensor(logpost_trn, dtype=torch.float32)
-    tstf = torch.as_tensor(logpost_tst, dtype=torch.float32)
-    trnt = torch.as_tensor(targets_trn, dtype=torch.int64)
-
-    calmodel = calmethod(trnf, trnt, **calparams)
-    calmodel.train()
-    tstf_cal = calmodel.calibrate(tstf)
-
-    logpostcal = tstf_cal.detach().numpy()
+    calmodel = train_calibrator(logpost_trn, targets_trn, calparams=calparams, calmethod=calmethod)
+    logpostcal = calibrate_scores(logpost_tst, calmodel)
 
     if return_model:
         return logpostcal, calmodel
