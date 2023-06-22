@@ -242,7 +242,7 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
         score_dict2 = {}
         for calmethod in ['', '-affcal', '-temcal', '-hiscal']:
             
-            traintypes = ['xv', 'tt'] if calmethods != '' else ['']
+            traintypes = ['xv', 'tt'] if calmethod != '' else ['']
 
             for traintype in traintypes:
                 traintypet = traintype if traintype != 'xv' else ''
