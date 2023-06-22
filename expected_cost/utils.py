@@ -6,7 +6,8 @@ from sklearn.utils import resample
 
 def plot_hists(targets, scores, outfile=None, nbins=100, group_by='score', style='-', label_prefix='', axs=None):
 
-    scores = np.atleast_2d(scores).T
+    if scores.ndim == 1:
+        scores = scores[:,np.newaxis]
 
     num_scores = scores.shape[1] 
 
@@ -150,7 +151,7 @@ def llrs_to_logpost(llrs, priors):
 def llks_to_logpost(llks, priors):
     """ Compute the log posterior from the log potentially-scaled likelihoods.
     The scale (a factor independent of the class, usually p(x)), does not matter 
-    in this computation because it dissapears when we normalize the posteriors. 
+    in this computation because it disappears when we normalize the posteriors. 
     """
 
     log_posteriors_unnormed = llks + np.log(priors)

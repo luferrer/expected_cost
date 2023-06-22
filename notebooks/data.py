@@ -146,7 +146,8 @@ def get_llks_for_gaussian_model(data, means, stds):
     return np.concatenate(llks).T
 
 
-def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, score_scale_mc2=5, sim_name='gaussian_sim', calibrate=False):
+def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, score_scale_mc2=5, 
+                            sim_name='gaussian_sim', calibrate=False, simple_names=False):
 
     """
     Generate a bunch of different posteriors for a C class problem (C can be changed to whatever you
@@ -164,6 +165,9 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
     If calibrate is True, for each of the 6 posteriors (Datap/Mismp-cal/mc1/mc2), calibrated
     versions, using an affine transformation, temp scaling, and histogram binning are also created.
     In each case, we train them either with cross-validation or by training on the test data.
+
+    When newnames is set to True, use the simpler names in the latest papers rather than the names
+    in the original one. 
     """ 
 
 
@@ -231,6 +235,23 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
                     score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
                     score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
 
+
+    if simple_names:
+        # The stuff below creates a dict with those scores with the system names used in the latest
+        # papers rather than the original ones. It discards mc1 and creates a dict with a single level.
+        score_dict2 = {}
+        for calmethod in ['', '-affcal', '-temcal', '-hiscal']:
+            for traintype in ['', 'xv', 'tt']:
+                traintypet = traintype if traintype != 'xv' else ''
+                caltypeo = calmethod+traintype
+                caltypei = calmethod+traintypet
+                if 'Datap'+caltypei in score_dict['cal']:
+                    score_dict2['cal'+caltypeo]  = score_dict['cal']['Datap'+caltypei]
+                    score_dict2['mcp'+caltypeo]  = score_dict['cal']['Mismp'+caltypei]
+                    score_dict2['mcs'+caltypeo]  = score_dict['mc2']['Datap'+caltypei]
+                    score_dict2['mcps'+caltypeo] = score_dict['mc2']['Mismp'+caltypei]        
+
+        score_dict = score_dict2
 
     return score_dict, targets
 
