@@ -241,7 +241,10 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
         # papers rather than the original ones. It discards mc1 and creates a dict with a single level.
         score_dict2 = {}
         for calmethod in ['', '-affcal', '-temcal', '-hiscal']:
-            for traintype in ['', 'xv', 'tt']:
+            
+            traintypes = ['xv', 'tt'] if calmethods != '' else ['']
+
+            for traintype in traintypes:
                 traintypet = traintype if traintype != 'xv' else ''
                 caltypeo = calmethod+traintype
                 caltypei = calmethod+traintypet
