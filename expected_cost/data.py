@@ -5,7 +5,6 @@ import numpy as np
 from scipy.stats import norm, multivariate_normal
 from scipy.special import logsumexp 
 from expected_cost import utils
-from IPython import embed
 import os
 
 try:
@@ -81,7 +80,7 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
         # Create data (features) using a Gaussian distribution for each class. 
         # Make the features unidimensional for simplicity, with same std and
         # evenly distributed means.
-        print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%C)
+        #print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%C)
         np.random.seed(0)
 
         # Put the mean at 0, 1, ..., C-1. 

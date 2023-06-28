@@ -483,6 +483,9 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
         The Bayes decisions that correspond to the computed cost
 
     """
+    if costs is None:
+            nclasses = 2 if score_type == "log_likelihood_ratios" else scores.shape[1]
+            costs = CostMatrix.zero_one_costs(nclasses)
 
     decisions, posteriors = bayes_decisions(scores, costs, priors, score_type, silent=silent)
     cost = average_cost(targets, decisions, costs, priors, sample_weight, adjusted)
