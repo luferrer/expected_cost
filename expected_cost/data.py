@@ -147,7 +147,7 @@ def get_llks_for_gaussian_model(data, means, stds):
 
 
 def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, score_scale_mc2=5, 
-                            sim_name='gaussian_sim', calibrate=False, simple_names=False):
+                            sim_name='gaussian_sim', calibrate=False, simple_names=False, nbins=15):
 
     """
     Generate a bunch of different posteriors for a C class problem (C can be changed to whatever you
@@ -232,8 +232,8 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
 
                 # For the binary case, add one calibrated version using histogram binning 
                 if C == 2:
-                    score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
-                    score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal)
+                    score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal, calparams={'M':nbins})
+                    score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal, calparams={'M':nbins})
 
 
     if simple_names:
