@@ -23,12 +23,14 @@ def LogLoss(log_probs, labels, norm=True, priors=None):
 
 def ECE(log_probs, labels, M=15, return_values=False):
 
-    return losses.ECE(torch.tensor(log_probs), torch.tensor(labels), M, return_values)
+    out = losses.ECE(torch.tensor(log_probs), torch.tensor(labels), M, return_values)
+    return [v.detach().numpy() if torch.is_tensor(v) else v for v in out] if return_values else out.detach().numpy()
+
 
 def ECEbin(log_probs, labels, M=15, return_values=False):
 
-    return losses.ECEbin(torch.tensor(log_probs), torch.tensor(labels), M, return_values)
-
+    out = losses.ECEbin(torch.tensor(log_probs), torch.tensor(labels), M, return_values)
+    return [v.detach().numpy() if torch.is_tensor(v) else v for v in out] if return_values else out.detach().numpy()
 
 def CalLoss(metric, raw_scores, cal_scores, targets, **metric_kwargs):
     r = metric(raw_scores, targets, metric_kwargs)
