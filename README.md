@@ -47,6 +47,12 @@ If you want the latest stuff, along with all the notebooks, you can do the follo
    ```pip install -r requirements.txt```
    
    (You can delete the psrcal line if you do not need calibration capabilities).
-  
-3. You can now run any notebook in the notebooks directory.
+
+3. Add the resulting top directory in your PYTHONPATH. In bash this would be:
+
+   ```export PYTHONPATH=ROOT_DIR/expected_cost:$PYTHONPATH```
+
+where ROOT_DIR is the absolute path (or the relative path from the directory where you have the scripts or notebooks you want to run) to the top directory from where you did the clone above.
+ 
+4. You can now run any notebook in the notebooks directory.
 
