@@ -24,9 +24,19 @@ The code provides methods for computing the EC when decisions are given by:
 
 The scripts in the examples directory can be used with any dataset of scores and targets. See the examples/data.py file for examples on how to load your own data in the format required by the examples.
 
-The repository provides calibration functionality using a separate repository called psr-calibration. The psr-calibration repository (which requires pytorch) is not needed for normal functioning of the code. A wrapper of the psr-calibration main calibration method can be found in the expected_cost/calibration.py file. An example on how to use this method can be found in the notebooks/data.py file. 
-
 ## How to install
+
+You can install this package as:
+
+```pip install expected_cost```
+
+which will also install all the dependencies. Some of the notebooks in this repository also require the psrcal package, which you can install as:
+
+```pip install psrcal```
+
+This is not included in the requirements of expected_cost because its installation requires pytorch, which takes a while. If you only need to compute expected cost or make Bayes decisions, and do not want to do or evaluate calibration, you do not need psrcal (or pytorch). 
+
+If you want the latest stuff, along with all the notebooks, you can do the following:
 
 1. Clone this repository:  
 
@@ -36,11 +46,7 @@ The repository provides calibration functionality using a separate repository ca
    
    ```pip install -r requirements.txt```
    
-3. (Optional) If you want to enable calibration capabilities follow the installation instructions in:
-
-   [```https://github.com/luferrer/psr-calibration```](https://github.com/luferrer/psr-calibration)
+   (You can delete the psrcal line if you do not need calibration capabilities).
   
-   and link the psrcal directory from that repository in the expected_cost directory.
-  
-4. You can now run any notebook in the notebooks directory.
+3. You can now run any notebook in the notebooks directory.
 
