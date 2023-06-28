@@ -1,5 +1,5 @@
 matplotlib>=3.5.2
 numpy>=1.24.1
 scipy>=1.9.1
-scikit_learn>=1.0.2
+scikit_learn>=1.2.2
 psrcal>=0.0.1
