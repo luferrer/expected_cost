@@ -32,10 +32,20 @@ def ECEbin(log_probs, labels, M=15, return_values=False):
     out = losses.ECEbin(torch.tensor(log_probs), torch.tensor(labels), M, return_values)
     return [v.detach().numpy() if torch.is_tensor(v) else v for v in out] if return_values else out.detach().numpy()
 
-def CalLoss(metric, raw_scores, cal_scores, targets, **metric_kwargs):
+
+def L2ECEbin(log_probs, labels, M=15, return_values=False):
+
+    out = losses.ECEbin(torch.tensor(log_probs), torch.tensor(labels), M, return_values, l2norm=True)
+    return [v.detach().numpy() if torch.is_tensor(v) else v for v in out] if return_values else out.detach().numpy()
+
+
+def CalLoss(metric, raw_scores, cal_scores, targets, relative=True, **metric_kwargs):
     r = metric(raw_scores, targets, metric_kwargs)
     c = metric(cal_scores, targets, metric_kwargs)
     if r>0 and not np.isnan(r) and not np.isinf(r):
-        return (r-c)/r*100 
+        if relative:
+            return (r-c)/r*100 
+        else:
+            return (r-c)*100
     else:
         return np.nan
