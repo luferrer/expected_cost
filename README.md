@@ -4,9 +4,9 @@ Methods for computing the expected cost (EC) on an evaluation dataset, as define
 Given a matrix of user-defined costs with elements $c_{y\ d}$, where $y$ is the true class of a sample and $d$ is the decision made by the system for that sample, 
 this metric is estimated as the average of the costs across all samples in the dataset. That is:
 
-$EC = \frac{1}{K} \sum_k c_{y_k\ d_k}$
+$\mathrm{EC} = \frac{1}{N} \sum_i c_{y_i,d_i}$
 
-where the sum runs over the $K$ samples in the evaluation set and $c_{y_k\ d_k}$ is the cost incurred at sample $k$.
+where the sum runs over the $N$ samples in the evaluation set and $c_{y_i,d_i}$ is the cost incurred at sample $i$.
 
 The EC is a generalization of the total error (which, in turn, is 1 minus the accuracy) and the balanced total error (which is 1 minus the balanced accuracy). The generalization is in the following ways: (1) it allows for costs that are different for each type of error, and (2) it allows for decisions that do not correspond one to one to the classes (e.g., it allows for the introduction of an "abstain" decision). The EC comes with an elegant theory on how to make optimal decisions given a certain set of costs, and it enables analysis of calibration. For these reasons we believe it is superior to other commonly used classification metrics, like the F-beta score or the Mathews correlation coefficient. All these issues are discussed in detail in:
 

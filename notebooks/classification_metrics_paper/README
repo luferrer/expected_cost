@@ -2,8 +2,8 @@ The notebooks in this directory create the plots and tables needed for
 the paper "Analysis and Comparison of Classification Metrics",
 arXiv:2209.05355
 
-Note that, unlike in the paper where class indices go from 1 to C, in
-this code the class indices go from 0 to C-1 since python has 0-based
+Note that, unlike in the paper where class indices go from 1 to K, in
+this code the class indices go from 0 to K-1 since python has 0-based
 indexing.
 
 The data used as input to these notebooks can be changed to your own

@@ -17,7 +17,7 @@ except:
     has_psr = False
 
 
-def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=None):
+def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=None):
     """ Load or create multi-class log (potentially scaled) likelihoods (llks).
     The method outputs both the raw (potentially miscalibrated) scores and 
     calibrated scores.
@@ -25,7 +25,7 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
     Two datasets are implemented here:
     * cifar10: pre-generated scores for cifar10 data
     * gaussian_sim: simulated data with Gaussian distributions. In this case,
-      the priors and K need to be set to determine the class priors and the 
+      the priors and N need to be set to determine the class priors and the 
       total number of samples required.
       
     The cifar10 example can be used as template to add a loader for your own set 
@@ -74,21 +74,21 @@ def get_llks_for_multi_classif_task(dataset, priors=None, K=100000, sim_params=N
         feat_std    = sim_params.get('feat_std', 1.0)
         score_shift = sim_params.get('score_shift', 0)
         score_scale = sim_params.get('score_scale', 1.0)
-        counts = np.array(np.array(priors)*K, dtype=int)
-        C = len(counts)
+        counts = np.array(np.array(priors)*N, dtype=int)
+        K = len(counts)
 
         # Create data (features) using a Gaussian distribution for each class. 
         # Make the features unidimensional for simplicity, with same std and
         # evenly distributed means.
-        #print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%C)
+        #print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%K)
         np.random.seed(0)
 
-        # Put the mean at 0, 1, ..., C-1. 
-        means = np.arange(0, C)
+        # Put the mean at 0, 1, ..., K-1. 
+        means = np.arange(0, K)
 
         # Use the same diagonal covariance matrix for all classes.
         # The value of std will determine the difficulty of the problem.
-        stds   = np.ones(C) * feat_std
+        stds   = np.ones(K) * feat_std
 
         # Draw values from these distributions which we take to be
         # (unidimensional) input features
@@ -118,8 +118,8 @@ def print_score_stats(scores, targets):
 
 def draw_data_for_gaussian_model(means, stds, counts):
     """ 
-    Draw data for C classes each with unidimensional Gaussian distribution.
-    The means, stds and counts arguments are lists of size C
+    Draw data for K classes each with unidimensional Gaussian distribution.
+    The means, stds and counts arguments are lists of size K
     containing the mean, std and number of samples for each class. """
 
     scores = []
@@ -145,11 +145,11 @@ def get_llks_for_gaussian_model(data, means, stds):
     return np.concatenate(llks).T
 
 
-def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=100000, score_scale_mc2=5, 
+def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, N=100000, score_scale_mc2=5, 
                             sim_name='gaussian_sim', calibrate=False, simple_names=False, nbins=15):
 
     """
-    Generate a bunch of different posteriors for a C class problem (C can be changed to whatever you
+    Generate a bunch of different posteriors for a K class problem (K can be changed to whatever you
     like). First, generate likelihoods with Gaussian class distributions and then compute:
 
     Datap: log-posteriors obtained from the llks applying the true data priors
@@ -170,20 +170,20 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
     """ 
 
 
-    C = num_classes
+    K = num_classes
 
-    # Prior vector with given above and all other priors being equal to (1-p0)/(C-1)
-    data_priors = np.array([P0] + [(1 - P0) / (C - 1)] * (C - 1))
+    # Prior vector with given above and all other priors being equal to (1-p0)/(K-1)
+    data_priors = np.array([P0] + [(1 - P0) / (K - 1)] * (K - 1))
 
     # Mismatched priors where the p0 is used for the last class instead of the first
-    mism_priors = np.array([(1 - P0m) / (C - 1)] * (C - 1) + [P0m])
+    mism_priors = np.array([(1 - P0m) / (K - 1)] * (K - 1) + [P0m])
 
     score_dict = {'cal': {}, 'mc1': {}, 'mc2': {}}
 
     # Parameters used for miscalibrating the true likelihoods to create the raw ones
     # The shift is set to 0 for all classes except the first one, and the scale is
     # set to 0.5
-    shift_for_raw_llks = np.zeros(C)
+    shift_for_raw_llks = np.zeros(K)
     shift_for_raw_llks[0] = 0.5
     score_scale1 = 0.5
     sim_params = {
@@ -196,7 +196,7 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
     targets, score_dict['mc1']['llks'], score_dict['cal']['llks'] = get_llks_for_multi_classif_task(sim_name,
                                                                                                     priors=data_priors,
                                                                                                     sim_params=sim_params,
-                                                                                                    K=K)
+                                                                                                    N=N)
     
     for rc in ['cal', 'mc1', 'mc2']:
 
@@ -230,7 +230,7 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, K=10000
                 score_dict[rc][f'{pr}-temcaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calparams={'bias':False})
 
                 # For the binary case, add one calibrated version using histogram binning 
-                if C == 2:
+                if K == 2:
                     score_dict[rc][f'{pr}-hiscal']   = calibration_with_crossval(score_dict[rc][pr], targets, calmethod=HistogramBinningCal, calparams={'M':nbins})
                     score_dict[rc][f'{pr}-hiscaltt'] = calibration_train_on_test(score_dict[rc][pr], targets, calmethod=HistogramBinningCal, calparams={'M':nbins})
 

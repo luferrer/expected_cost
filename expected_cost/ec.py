@@ -57,14 +57,14 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
 
     targets : 1d array-like of size N
         Ground truth (correct) target values for a set of N samples. 
-        Should take values between 0 and C-1, where C is the number
+        Should take values between 0 and K-1, where K is the number
         of possible class targets.
 
     decisions : 1d array-like of size N
         Decisions made for each of the N samples above. Should take
         values between 0 and D-1, where D is the number of possible 
         decisions. In the standard case, the set of decisions and the 
-        set of targets are the same (ie, C=D), but this function is 
+        set of targets are the same (ie, K=D), but this function is 
         more general and allows for the case in which the set of 
         decisions is not the same as the set of targets.
 
@@ -197,7 +197,7 @@ def generalized_confusion_matrix(targets, decisions, sample_weight=None, normali
 
     targets : 1d array-like of size N
         Ground truth (correct) target values for a set of N samples. 
-        Should take values between 0 and C-1, where C is the number
+        Should take values between 0 and K-1, where K is the number
         of possible targets.
 
     decisions : 1d array-like of size N
@@ -299,13 +299,13 @@ def bayes_decisions(scores, costs, priors=None, score_type='log_posteriors', sil
     Parameters 
     ----------
     
-    scores :  array of dimension N x C, where N is the number of samples and C is
+    scores :  array of dimension N x K, where N is the number of samples and K is
         the number of target classes, except in the case of log-likelihood ratios
         where the dimension should be N x 1.
 
     costs :  the cost_matrix object that defines the cost function along with the priors
 
-    priors : array if dimension C. The priors are used to convert scores that are 
+    priors : array if dimension K. The priors are used to convert scores that are 
         not posteriors into posteriors. The decisions will be optimized for a
         cost function with  these same priors. Should be None if scores are
         posteriors. In that case it is expected that the posteriors are
@@ -407,17 +407,17 @@ class CostMatrix:
         return CostMatrix(-utilities).normalize()
 
     @staticmethod
-    def zero_one_costs(C, abstention_cost=None):
+    def zero_one_costs(K, abstention_cost=None):
         """ Create a cost_matrix object with costs of 0 in the 
         diagonal and 1 elsewhere. This is the cost matrix that
         leads to the average_cost coinciding with the usual error 
-        rate. The parameter C indicates the size of the matrix 
+        rate. The parameter K indicates the size of the matrix 
         (ie, the number of possible targets and decisions). 
         If abstention_cost is not None, an additional decision
         is included as the last column with cost given by the
         value of this argument. 
         """
-        c = 1-np.eye(C)
+        c = 1-np.eye(K)
         if abstention_cost is not None:
             c = np.c_[c, abstention_cost*np.ones(c.shape[0])]
         
@@ -441,7 +441,7 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
 
     targets : 1d array-like of size N
         Ground truth (correct) target values for a set of N samples. 
-        Should take values between 0 and C-1, where C is the number
+        Should take values between 0 and K-1, where K is the number
         of possible class targets.
 
     scores : array-like of size NxC

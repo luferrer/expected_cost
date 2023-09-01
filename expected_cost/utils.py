@@ -66,7 +66,7 @@ def make_hist(targets, scores, classi=0, nbins=100):
         Should take values between 0 and C-1, where C is the number
         of possible class targets.
 
-    scores : array-like of size NxC
+    scores : array-like of size NxK
         Scores can be posteriors, log-posteriors, log-likelihoods
         or log-likelihood ratios (see method bayes_decisions for 
         a detailed explanation)
@@ -100,16 +100,16 @@ def make_hist(targets, scores, classi=0, nbins=100):
     return centers, hists
     
 
-def compute_R_matrix_from_counts_for_binary_classif(K01, K10, N0, N1):
-    """ Compute the error rates given the number of missclassifications, K01 and K10, 
+def compute_R_matrix_from_counts_for_binary_classif(N01, N10, N0, N1):
+    """ Compute the error rates given the number of missclassifications, N01 and N10, 
     and the total number of samples for each class, N0, N1.
-    K01: number of samples of class 0 labelled as class 1
-    K10: number of samples of class 1 labelled as class 0
+    N01: number of samples of class 0 labelled as class 1
+    N10: number of samples of class 1 labelled as class 0
     N0: number of samples of class 0
     N1: number of samples of class 1
     """
 
-    cm = np.array([[N0-K01, K01],[K10, N1-K10]])
+    cm = np.array([[N0-N01, N01],[N10, N1-N10]])
     # Return R matrix
     return cm/cm.sum(axis=1, keepdims=True)
     
@@ -214,34 +214,34 @@ def get_binary_data_priors(targets):
     '''
     N0 = sum(targets==0)
     N1 = sum(targets==1)
-    K = N0 + N1
-    P0 = N0/K
-    P1 = N1/K
+    N = N0 + N1
+    P0 = N0/N
+    P1 = N1/N
     return P0, P1
 
 
 #########################################################################################
 # Definition of a few standard metrics computed from the confusion matrix
 
-def Fscore(K10, K01, N0, N1, betasq=1):
-    K11 = N1-K10
-    Recall    = K11/N1
-    Precision = K11/(K11+K01) if K11+K01>0 else 0
-    Fscore    = (betasq+1) * Precision*Recall/(betasq*Recall+Precision) if K11>0 else 0
+def Fscore(N10, N01, N0, N1, betasq=1):
+    N11 = N1-N10
+    Recall    = N11/N1
+    Precision = N11/(N11+N01) if N11+N01>0 else 0
+    Fscore    = (betasq+1) * Precision*Recall/(betasq*Recall+Precision) if N11>0 else 0
     return Fscore
     
 
-def MCCoeff(K10, K01, N0, N1):
-    K11 = N1-K10
-    K00 = N0-K01
-    num = K00 * K11 - K01 * K10
-    den = np.sqrt(N0 * N1 * (K01+K11) * (K10 + K00))
+def MCCoeff(N10, N01, N0, N1):
+    N11 = N1-N10
+    N00 = N0-N01
+    num = N00 * N11 - N01 * N10
+    den = np.sqrt(N0 * N1 * (N01+N11) * (N10 + N00))
     return num/den if den>0 else (np.inf if num>0 else -np.inf)
 
 
-def LRplus(K10, K01, N0, N1):
-    R10 = K10 / N1
-    R01 = K01 / N0
+def LRplus(N10, N01, N0, N1):
+    R10 = N10 / N1
+    R01 = N01 / N0
     return (1-R10)/R01 if R01>0 else np.inf
 
 
