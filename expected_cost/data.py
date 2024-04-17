@@ -2,7 +2,7 @@
 """
 
 import numpy as np
-from scipy.stats import norm, multivariate_normal
+from scipy.stats import multivariate_normal
 from scipy.special import logsumexp 
 from expected_cost import utils
 import os
@@ -17,55 +17,24 @@ except:
     has_psr = False
 
 
-def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=None):
-    """ Load or create multi-class log (potentially scaled) likelihoods (llks).
+def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=None, logpost=False, 
+        seed=0, train_cal_on_test=False, one_vs_other=None):
+    """ Load or create multi-class scores.
     The method outputs both the raw (potentially miscalibrated) scores and 
-    calibrated scores.
-         
-    Two datasets are implemented here:
-    * cifar10: pre-generated scores for cifar10 data
+    calibrated scores. If logpost is False, output log-likelihoods. This is the default. 
+    If logpost is True, output log posteriors.
+
+    Two ways of getting data are implemented here:
     * gaussian_sim: simulated data with Gaussian distributions. In this case,
       the priors and N need to be set to determine the class priors and the 
       total number of samples required.
+    * <dataset>: pre-generated scores that will be loaded from data/<dataset>
       
-    The cifar10 example can be used as template to add a loader for your own set 
-    of scores. If your scores are posteriors instead of llks, you can either: 
-    * ignore this fact and have this method output the posteriors (in this case,  
-      remember to call the expected cost methods with score_type="log-posteriors")
-    * convert them to estimated llks by using logpost_to_log_scaled_lks where the 
-      priors can be estimated as those used in training.
-
     """
 
-    if 'cifar10' in dataset:
+    np.random.seed(seed=seed)
 
-        # Load pre-generated scores for cifar10 data
-        print("\n**** Loading in CIFAR10 data ****\n")
-        dir = os.path.dirname(__file__)+"/data/resnet-50_cifar10/"
-        print(dir)
-        preacts = np.load(dir+"predictions.npy")
-        targets = np.load(dir+"targets.npy")
-
-        # Compute log-softmax to get log posteriors. 
-        raw_logpost = preacts - logsumexp(preacts, axis=-1, keepdims=True)
-
-        if has_psr:
-            # Calibrate the scores with cross-validation using an affine transform
-            # trained with log-loss (cross-entropy)
-            print("Calibrating data")
-            cal_logpost = calibration_with_crossval(raw_logpost, targets)
-        else:
-            # If calibration code is not available, load a pre-generated file
-            cal_logpost = np.load(dir+"predictions_cal_10classes.npy")
-
-        # For this dataset, the posteriors coincide with the scaled likelihoods
-        # because the priors are uniform. If that was not the case, we would use
-        # utils.logpost_to_log_scaled_lks(logpost, priors), where the priors are 
-        # those used in training.
-        raw_llks = raw_logpost
-        cal_llks = cal_logpost
-
-    elif dataset == 'gaussian_sim':
+    if dataset == 'gaussian_sim':
 
         if sim_params is None:
             sim_params = {}
@@ -81,7 +50,6 @@ def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=N
         # Make the features unidimensional for simplicity, with same std and
         # evenly distributed means.
         #print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%K)
-        np.random.seed(0)
 
         # Put the mean at 0, 1, ..., K-1. 
         means = np.arange(0, K)
@@ -102,11 +70,67 @@ def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=N
         # Now generate misscalibrated llks with the provided shift and scale 
         raw_llks = score_scale * cal_llks + score_shift
 
+        if logpost:
+            raw_logpost = utils.llks_to_logpost(raw_llks, priors)
+            cal_logpost = utils.llks_to_logpost(cal_llks, priors)
+
     else:
-        raise Exception(f"Unrecognized dataset name: {dataset}")
+        # load logits from a directory
+        preacts = np.load(dataset+"/scores.npy")
+        targets = np.array(np.load(dataset+"/targets.npy"), dtype=int)
 
+        counts = np.bincount(targets)
+        data_priors = counts/len(targets)
+        if priors is not None:
+            # Resample the data to get the requested priors
+            new_counts = priors * len(targets)
+            ratio = new_counts / counts
+            new_counts /= np.max(ratio)
+            for c in np.sort(np.unique(targets)):
+                idx = targets==c
+                p = preacts[idx]
+                t = targets[idx]
+                keep_idx = np.random.choice(np.arange(len(t)), int(new_counts[c]), replace=False)
+                if c==0:
+                    new_targets = t[keep_idx]
+                    new_preacts = p[keep_idx]
+                else:
+                    new_targets = np.r_[new_targets, t[keep_idx]]
+                    new_preacts = np.r_[new_preacts, p[keep_idx]]
 
-    return targets, raw_llks, cal_llks
+            targets = new_targets
+            preacts = new_preacts            
+
+        # Compute log-softmax to get log posteriors. 
+        raw_logpost = preacts - logsumexp(preacts, axis=-1, keepdims=True)
+
+        if one_vs_other is not None:
+            # Map the multi-class problem into a new one vs other problem
+            raw_logpost_1 = raw_logpost[:,one_vs_other]
+            raw_logpost_0 = logsumexp(np.delete(raw_logpost, one_vs_other, axis=1), axis=1)
+
+            raw_logpost = np.c_[raw_logpost_0, raw_logpost_1]
+            targets = np.array(targets == one_vs_other, dtype=int)
+
+        if has_psr:
+            # Calibrate the scores with cross-validation using an affine transform
+            # trained with log-loss (cross-entropy)
+            if train_cal_on_test:
+                cal_logpost = calibration_train_on_test(raw_logpost, targets)
+            else:
+                cal_logpost = calibration_with_crossval(raw_logpost, targets, seed=seed)
+        else:
+            # If calibration code is not available, load a pre-generated file
+            cal_logpost = np.load(dir+"predictions_cal_10classes.npy")
+
+        if not logpost:
+            raw_llks = utils.logpost_to_log_scaled_lks(raw_logpost, priors)
+            cal_llks = utils.logpost_to_log_scaled_lks(cal_logpost, priors)
+
+    if logpost:
+        return targets, raw_logpost, cal_logpost
+    else:
+        return targets, raw_llks, cal_llks
 
 
 def print_score_stats(scores, targets):
