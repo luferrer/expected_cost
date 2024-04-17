@@ -21,6 +21,10 @@ def LogLoss(log_probs, labels, norm=True, priors=None):
     return loss_from_psrcal(losses.LogLoss, log_probs, labels, norm, priors)
 
 
+def LogLossSE(log_probs, ref_log_probs, norm=True):
+
+    return losses.LogLossSE(torch.tensor(log_probs), torch.tensor(ref_log_probs), norm=norm).detach().numpy()
+
 def ECE(log_probs, labels, M=15, return_values=False):
 
     out = losses.ECE(torch.tensor(log_probs), torch.tensor(labels), M, return_values)
