@@ -493,7 +493,7 @@ def average_cost_for_bayes_decisions(targets, scores, costs=None, priors=None, s
     return cost, decisions
 
 def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None, sample_weight=None, 
-    adjusted=False, score_type='log_posteriors'):
+    adjusted=False, score_type='log_posteriors', return_threshold=False):
     """ Average cost for optimal decisions given the provided scores. 
     Only applicable to binary classification when the cost matrix has 
     the following form:
@@ -566,4 +566,7 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
     else:
         norm_value = 1.0
 
-    return np.min(ave_cost)/norm_value
+    if return_threshold:
+        return np.min(ave_cost)/norm_value, post1_with_target[np.argmin(ave_cost),0]
+    else:
+        return np.min(ave_cost)/norm_value
