@@ -245,3 +245,10 @@ def LRplus(N10, N01, N0, N1):
     return (1-R10)/R01 if R01>0 else np.inf
 
 
+def effective_priors(costs, priors):
+    """ Compute the effective priors: the equivalent priors that would lead to the same cost function
+    if the costs are were all set to 1 
+    """
+
+    return costs*priors/np.sum(costs*priors)
+
