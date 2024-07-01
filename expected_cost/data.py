@@ -34,38 +34,45 @@ def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=N
 
     np.random.seed(seed=seed)
 
-    if dataset == 'gaussian_sim':
+    if dataset == 'gaussian_sim' or dataset == 'gaussian_sim_md':
 
         if sim_params is None:
             sim_params = {}
 
-
-        feat_std    = sim_params.get('feat_std', 1.0)
+        feat_var    = sim_params.get('feat_var', 1.0)
         score_shift = sim_params.get('score_shift', 0)
         score_scale = sim_params.get('score_scale', 1.0)
         counts = np.array(np.array(priors)*N, dtype=int)
         K = len(counts)
 
         # Create data (features) using a Gaussian distribution for each class. 
-        # Make the features unidimensional for simplicity, with same std and
-        # evenly distributed means.
-        #print("\n**** Creating simulated data with Gaussian class distributions for %d classes ****\n"%K)
 
-        # Put the mean at 0, 1, ..., K-1. 
-        means = np.arange(0, K)
+        if dataset == 'gaussian_sim':
+            # Make the features unidimensional for simplicity, with same variance and
+            # evenly distributed means.
 
-        # Use the same diagonal covariance matrix for all classes.
-        # The value of std will determine the difficulty of the problem.
-        stds   = np.ones(K) * feat_std
+            # Put the mean at 0, 1, ..., K-1. 
+            means = np.arange(0, K)
 
-        # Draw values from these distributions which we take to be
-        # (unidimensional) input features
-        feats, targets = draw_data_for_gaussian_model(means, stds, counts)
+            # Use the same diagonal variance for all classes.
+            # The value of var will determine the difficulty of the problem.
+            cov = feat_var
+
+        else:
+            # An alternative option where the samples lie in an n-dimensional space and the means are
+            # equidistant from each other. One mean at each vertix. 
+            means = np.sqrt(0.5) * np.identity(K)
+
+            cov = np.identity(K) * feat_var
+
+
+        # Draw values from these distributions which we take to be input features
+        feats, targets = draw_data_for_gaussian_model(means, cov, counts)
 
         # Now get the likelihoods for the features sampled above given the model.
         # These are well-calibrated by definition, since we know the generating
         # distribution.
-        cal_llks = get_llks_for_gaussian_model(feats, means, stds)
+        cal_llks = get_llks_for_gaussian_model(feats, means, cov)
 
         # Now generate misscalibrated llks with the provided shift and scale 
         raw_llks = score_scale * cal_llks + score_shift
@@ -73,6 +80,7 @@ def get_llks_for_multi_classif_task(dataset, priors=None, N=100000, sim_params=N
         if logpost:
             raw_logpost = utils.llks_to_logpost(raw_llks, priors)
             cal_logpost = utils.llks_to_logpost(cal_llks, priors)
+
 
     else:
         # load logits from a directory
@@ -140,37 +148,36 @@ def print_score_stats(scores, targets):
         print("Class %d :  mean  %5.2f    std   %5.2f"%(c, np.mean(scores_c, axis=0), np.std(scores_c, axis=0)))
 
 
-def draw_data_for_gaussian_model(means, stds, counts):
+def draw_data_for_gaussian_model(means, cov, counts):
     """ 
-    Draw data for K classes each with unidimensional Gaussian distribution.
-    The means, stds and counts arguments are lists of size K
-    containing the mean, std and number of samples for each class. """
+    Draw data for K classes each with Gaussian distribution.
+    The means, and counts arguments are lists of size K
+    containing the mean and number of samples for each class. """
 
-    scores = []
+    samples = []
     targets = []
-    for i, (mean, std, count) in enumerate(zip(means, stds, counts)):
-        scores.append(multivariate_normal.rvs(mean, std, count))
+    for i, (mean, count) in enumerate(zip(means, counts)):
+        samples.append(multivariate_normal.rvs(mean, cov, count))
         targets.append(np.ones(count)*i)
 
-    scores = np.concatenate(scores)
-    return scores, np.array(np.concatenate(targets), dtype=int)
+    samples = np.concatenate(samples)
+    return samples, np.array(np.concatenate(targets), dtype=int)
 
 
-def get_llks_for_gaussian_model(data, means, stds):
-    """ Assuming that the input data were created with 
-    draw_data_for_gaussian_model, get the log likelihoods
+def get_llks_for_gaussian_model(data, means, cov):
+    """ Assuming that the input data were created with draw_data_for_gaussian_model, get the log likelihoods
     for each class for the input scores.
     """
 
     llks = []
-    for mean, std in zip(means, stds):
-        llks.append(np.atleast_2d(np.log(multivariate_normal(mean, std).pdf(data))))
+    for mean in means:
+        llks.append(np.atleast_2d(np.log(multivariate_normal(mean, cov).pdf(data))))
 
     return np.concatenate(llks).T
 
 
-def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, N=100000, score_scale_mc2=5, 
-                            sim_name='gaussian_sim', calibrate=False, simple_names=False, nbins=15):
+def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_var=0.15, N=100000, score_scale_mc2=5, 
+                            sim_name='gaussian_sim', calibrate=False, simple_names=False, nbins=15, seed=0):
 
     """
     Generate a bunch of different posteriors for a K class problem (K can be changed to whatever you
@@ -211,7 +218,7 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, N=10000
     shift_for_raw_llks[0] = 0.5
     score_scale1 = 0.5
     sim_params = {
-        'feat_std': feat_std,
+        'feat_var': feat_var,
         'score_scale': score_scale1,
         'score_shift': shift_for_raw_llks
         }
@@ -220,7 +227,7 @@ def create_scores_for_expts(num_classes, P0=0.9, P0m=0.9, feat_std=0.15, N=10000
     targets, score_dict['mc1']['llks'], score_dict['cal']['llks'] = get_llks_for_multi_classif_task(sim_name,
                                                                                                     priors=data_priors,
                                                                                                     sim_params=sim_params,
-                                                                                                    N=N)
+                                                                                                    N=N, seed=seed)
     
     for rc in ['cal', 'mc1', 'mc2']:
 
