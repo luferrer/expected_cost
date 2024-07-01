@@ -3,6 +3,7 @@ from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold, Group
 import torch
 import numpy as np
 from scipy.special import logsumexp 
+from llreval.pav_rocch import PAV
 
 
 def train_calibrator(logpost_trn, targets_trn, calparams={}, calmethod=AffineCalLogLoss):
@@ -90,8 +91,29 @@ def calibration_train_on_heldout(logpost_tst, logpost_trn, targets_trn, calmetho
     else:
         return logpostcal
 
-def calibration_train_on_test(logpost, targets, calmethod=AffineCalLogLoss, calparams={} ,return_model=False):
+def calibration_train_on_test(logpost, targets, calmethod=AffineCalLogLoss, calparams={}, return_model=False):
 
-    return calibration_train_on_heldout(logpost, logpost, targets, calmethod=calmethod, return_model=return_model, 
-                                        calparams=calparams)
+    if calmethod == 'PAV':
+        if len(np.unique(targets)) > 2:
+            raise Exception("PAV calibration can only be done for binary classification")
+        
+        logpost1 = logpost[:,1]
+        pav = PAV(logpost1, targets)
+
+        # Map each logpost into its corresponding PAV-calibrated posterior
+        # PAV returns the start and end score for each PAV bin (pav.scores) and the corresponding
+        # calibrated posterior in pav.p
+        calpost = np.ones_like(logpost) * np.nan
+        for i, (rs, re) in enumerate(pav.scores):
+            ix = np.where((logpost1 >= rs) * (logpost1 <= re))[0]
+            calpost[ix,1] = pav.p[i]
+        calpost[:,0] = 1 - calpost[:,1]
+
+        assert not np.any(np.isnan(calpost))
+        calpost = np.clip(calpost, 1e-30, 1-1e-30)
+
+        return np.log(calpost)
+    else:
+        return calibration_train_on_heldout(logpost, logpost, targets, calmethod=calmethod, return_model=return_model, 
+                                            calparams=calparams)
 
