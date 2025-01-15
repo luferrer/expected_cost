@@ -118,13 +118,13 @@ def average_cost(targets, decisions, costs=None, priors=None, sample_weight=None
     0.16666
     """
 
-    if priors is None:
-        priors = np.bincount(targets)/len(targets)
-    priors = priors[:,np.newaxis]
-
     if costs is None:
-        costs = CostMatrix.zero_one_costs(len(priors))
+        costs = CostMatrix.zero_one_costs(np.max([np.max(targets), np.max(decisions)]))
     cmatrix = costs.get_matrix()
+
+    if priors is None:
+        priors = get_priors_from_data(targets, cmatrix.shape[0])
+    priors = np.atleast_2d(priors)
 
     # The confusion matrix, when normalized by the true class (the target)
     # contains the R_ij we need for computing the cost.
@@ -570,3 +570,20 @@ def average_cost_for_optimal_decisions(targets, scores, costs=None, priors=None,
         return np.min(ave_cost)/norm_value, post1_with_target[np.argmin(ave_cost),0]
     else:
         return np.min(ave_cost)/norm_value
+
+
+def get_priors_from_data(targets, num_classes):
+
+    priors = np.bincount(targets)/len(targets)
+    priors = priors[:,np.newaxis]
+
+    # If one or more of the last classes does not appear in targets, the prior vector above
+    # is missing those zeroes. Add them.
+
+    if len(priors) < num_classes:
+        priors = np.r_[priors, np.zeros((num_classes-len(priors),1))]
+
+    return priors
+
+
+
