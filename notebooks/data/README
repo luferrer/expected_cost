@@ -1,0 +1,46 @@
+Datasets downloaded or created from publicly available repositories
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+The cifar scores were created using the repository https://github.com/chenyaofo/image-classification-codebase after hacking the code to dump the scores and targets. The hacked main.py and engine.py files are inside the cifar10_resnet-20 dir.
+
+Then, we run the following commands to generate the scores:
+
+python -m entry.run --conf conf/cifar10.conf -o output/cifar10/resnet20 -M model.name=cifar10_resnet20 model.pretrained=true only_evaluate=true
+mv scores.npy targets.npy cifar10_resnet-20/
+
+python -m entry.run --conf conf/cifar100.conf -o output/cifar100/resnet20 -M model.name=cifar100_resnet20 model.pretrained=true only_evaluate=true
+mv scores.npy targets.npy cifar100_resnet-20/
+
+python -m entry.run --conf conf/cifar10.conf -o output/cifar10/repvgg_a2 -M model.name=cifar10_repvgg_a2 model.pretrained=true only_evaluate=true
+mv scores.npy targets.npy cifar10_repvgg_a2/
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+The iemocap scores were downloaded from:
+
+https://github.com/habla-liaa/ser-with-w2v2/tree/master/experiments/w2v2LS960-alllayers/0123/MainTask/DownstreamIEMOCAP
+https://github.com/habla-liaa/ser-with-w2v2/tree/master/experiments/w2v2PT-fusion/0123/MainTask/DownstreamIEMOCAP
+
+and then the scores from all 5 folds are merged and formatted into the scores.npy and targets.npy files using the format_data.py inside the iemocap dirs.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+The sst2 and agnews scores were created using the scripts in https://github.com/LautaroEst/efficient-reestimation/ for 0 shots
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+The sitw scores were created using the scripts in https://github.com/luferrer/DCA-PLDA/examples/speaker_verification.
+
+The sitw_plda scores are taken from the   examples/speaker_verification/output/train_vox/dplda/seed0/stage1/eval_ep0000/sitw.eval dir.
+
+The fvcaus_plda scores are taken from the examples/speaker_verification/output/train_vox/dplda/seed0/stage1/eval_ep0000/heldout_fvcaus dir.
+
+In both cases, the sitw_plda/convert_scores.py script is run on the scores.h5 scores to convert them to the format required in this repo (from within the examples/speaker_verification directory).
+
+
+
+
+
+
